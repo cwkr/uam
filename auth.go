@@ -7,12 +7,13 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/go-jose/go-jose/v3/jwt"
 )
 
 func Auth(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC().Unix()
-	claims := jwt.MapClaims{
+
+	claims := map[string]interface{}{
 		"sub": config.Username,
 		"prn": config.Username,
 		"iat": now,
@@ -25,9 +26,7 @@ func Auth(w http.ResponseWriter, r *http.Request) {
 		claims[key] = value
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-
-	x, _ := token.SignedString(rsaPrivKey)
+	x, _ := jwt.Signed(signer).Claims(claims).CompactSerialize()
 
 	redirectUris := r.URL.Query()["redirect_uri"]
 	states := r.URL.Query()["state"]

@@ -12,7 +12,7 @@ import (
 func Index(w http.ResponseWriter, r *http.Request) {
 	const tpl = `<!doctype html>
 <h1>Jwtoker</h1>
-<a href="jwks.json">jwks.json</a>
+<a href="jwks">JSON Web Key Set</a>
 <br>
 <br>
 <pre>
@@ -37,10 +37,7 @@ if (hash_params.access_token) {
 </pre>`
 	t, _ := template.New("index").Parse(tpl)
 
-	pubASN1, err := x509.MarshalPKIXPublicKey(&rsaPrivKey.PublicKey)
-	if err != nil {
-		// do something about it
-	}
+	pubASN1 := x509.MarshalPKCS1PublicKey(&rsaPrivKey.PublicKey)
 
 	pubBytes := pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PUBLIC KEY",

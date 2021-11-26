@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	jose "gopkg.in/square/go-jose.v2"
+	"github.com/go-jose/go-jose/v3"
 )
 
 func Jwks(w http.ResponseWriter, r *http.Request) {

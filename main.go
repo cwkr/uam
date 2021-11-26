@@ -8,7 +8,7 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"github.com/go-jose/go-jose/v3"
 	"log"
 	"math/rand"
 	"net/http"
@@ -17,20 +17,23 @@ import (
 	"time"
 )
 
-var rsaPrivKey *rsa.PrivateKey
-var config *JwtokerConfig
+var (
+	rsaPrivKey *rsa.PrivateKey
+	config *JwtokerConfig
+	signer jose.Signer
+)
 
 func main() {
 	var err error
 	var configFilename string
 	var showHelp bool
-	var printConfig bool
+	var initConfig bool
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	flag.StringVar(&configFilename, "config", "jwtoker.json", "config file")
 	flag.BoolVar(&showHelp, "help", false, "print help and exit")
-	flag.BoolVar(&printConfig, "printconfig", false, "print config and exit")
+	flag.BoolVar(&initConfig, "init", false, "init config and exit")
 	flag.Parse()
 
 	if showHelp {
@@ -44,7 +47,7 @@ func main() {
 		Username: "jwtoker",
 	}
 
-	configBytes, err := ioutil.ReadFile(configFilename)
+	configBytes, err := os.ReadFile(configFilename)
 	if err != nil {
 		log.Print(err)
 	} else {
@@ -54,19 +57,37 @@ func main() {
 		}
 	}
 
-	if config.Key == "" {
-		rsaPrivKey, err = rsa.GenerateKey(cryptorand.Reader, 2048)
-		if err != nil {
-			log.Fatal(err)
-		}
-	} else if strings.HasPrefix(config.Key, "-----BEGIN RSA PRIVATE KEY-----") {
+	if strings.HasPrefix(config.Key, "-----BEGIN RSA PRIVATE KEY-----") {
 		block, _ := pem.Decode([]byte(config.Key))
 		rsaPrivKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
 			log.Fatal(err)
 		}
+	} else if config.Key == "" || !FileExists(config.Key) {
+		if !initConfig && config.Key != "" {
+			log.Fatal("Missing key", config.Key)
+		}
+		rsaPrivKey, err = rsa.GenerateKey(cryptorand.Reader, 2048)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		pubASN1 := x509.MarshalPKCS1PrivateKey(rsaPrivKey)
+		keyBytes := pem.EncodeToMemory(&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: pubASN1,
+		})
+		if config.Key == "" {
+			config.Key = string(keyBytes)
+		} else {
+			err := os.WriteFile(config.Key, keyBytes, 0600)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+
 	} else {
-		pemBytes, err := ioutil.ReadFile(config.Key)
+		pemBytes, err := os.ReadFile(config.Key)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -77,14 +98,23 @@ func main() {
 		}
 	}
 
-	if printConfig {
+	signer, err = jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: rsaPrivKey}, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if initConfig {
+		log.Printf("Initializing config file %s...", configFilename)
 		configJson, _ := json.MarshalIndent(config, "", "  ")
-		fmt.Println(string(configJson))
+		err := os.WriteFile(configFilename, configJson, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
 		os.Exit(0)
 	}
 
 	http.HandleFunc("/", Index)
-	http.HandleFunc("/jwks.json", Jwks)
+	http.HandleFunc("/jwks", Jwks)
 	http.HandleFunc("/auth", Auth)
 	http.HandleFunc("/favicon.ico", Favicon)
 
