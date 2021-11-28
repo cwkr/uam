@@ -6,9 +6,10 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
-	"github.com/go-jose/go-jose/v3"
+	"github.com/cwkr/jwtoker/oauth2"
 	"log"
 	"math/rand"
 	"net/http"
@@ -20,14 +21,27 @@ import (
 var (
 	rsaPrivKey *rsa.PrivateKey
 	config *JwtokerConfig
-	signer jose.Signer
+	tokenService oauth2.TokenService
 )
+
+func FileExists(name string) bool {
+	stat, err := os.Stat(name)
+	if err == nil {
+		return !stat.IsDir()
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	return false
+}
 
 func main() {
 	var err error
 	var configFilename string
 	var showHelp bool
 	var initConfig bool
+
+	log.SetOutput(os.Stdout)
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
@@ -43,17 +57,20 @@ func main() {
 
 	// Set defaults
 	config = &JwtokerConfig{
-		Port:     1337,
+		Issuer: "http://localhost:1337/",
+		Port: 1337,
 		Username: "jwtoker",
+		ClientID: "myapp",
+		AccessTokenLifetime: 3600,
+		Claims: map[string]interface{}{"email": "jwtoker@example.org"},
+		Scopes: []string{"openid", "profile", "email", "offline_access"},
 	}
 
 	configBytes, err := os.ReadFile(configFilename)
-	if err != nil {
-		log.Print(err)
-	} else {
+	if err == nil {
 		err = json.Unmarshal(configBytes, config)
 		if err != nil {
-			log.Fatal(err)
+			panic(err)
 		}
 	}
 
@@ -61,15 +78,15 @@ func main() {
 		block, _ := pem.Decode([]byte(config.Key))
 		rsaPrivKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
-			log.Fatal(err)
+			panic(err)
 		}
 	} else if config.Key == "" || !FileExists(config.Key) {
 		if !initConfig && config.Key != "" {
-			log.Fatal("Missing key", config.Key)
+			panic("Missing key")
 		}
 		rsaPrivKey, err = rsa.GenerateKey(cryptorand.Reader, 2048)
 		if err != nil {
-			log.Fatal(err)
+			panic(err)
 		}
 
 		pubASN1 := x509.MarshalPKCS1PrivateKey(rsaPrivKey)
@@ -82,42 +99,45 @@ func main() {
 		} else {
 			err := os.WriteFile(config.Key, keyBytes, 0600)
 			if err != nil {
-				log.Fatal(err)
+				panic(err)
 			}
 		}
 
 	} else {
 		pemBytes, err := os.ReadFile(config.Key)
 		if err != nil {
-			log.Fatal(err)
+			panic(err)
 		}
 		block, _ := pem.Decode(pemBytes)
 		rsaPrivKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
-			log.Fatal(err)
+			panic(err)
 		}
 	}
 
-	signer, err = jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: rsaPrivKey}, nil)
+	tokenService, err = oauth2.NewTokenService(rsaPrivKey, config.Issuer, config.Scopes, config.AccessTokenLifetime)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	if initConfig {
-		log.Printf("Initializing config file %s...", configFilename)
+		fmt.Printf("Initializing config file %s", configFilename)
 		configJson, _ := json.MarshalIndent(config, "", "  ")
 		err := os.WriteFile(configFilename, configJson, 0644)
 		if err != nil {
-			log.Fatal(err)
+			panic(err)
 		}
 		os.Exit(0)
 	}
 
 	http.HandleFunc("/", Index)
-	http.HandleFunc("/jwks", Jwks)
-	http.HandleFunc("/auth", Auth)
-	http.HandleFunc("/favicon.ico", Favicon)
+	http.Handle("/jwks", oauth2.JwksHandler(&rsaPrivKey.PublicKey))
+	http.Handle("/token", oauth2.TokenHandler(tokenService, config.ClientID, config.Claims))
+	http.Handle("/auth", oauth2.AuthHandler(tokenService, config.ClientID, config.Username, config.Claims))
 
-	log.Printf("Started listening on http://localhost:%d/...", config.Port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", config.Port), nil))
+	log.Printf("Listening on http://localhost:%d/\n", config.Port)
+	err = http.ListenAndServe(fmt.Sprintf("localhost:%d", config.Port), nil)
+	if err != nil {
+		panic(err)
+	}
 }

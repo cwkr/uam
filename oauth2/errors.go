@@ -1,0 +1,50 @@
+package oauth2
+
+import (
+	"encoding/json"
+	"net/http"
+)
+
+const (
+	// ErrorInvalidRequest - The request is missing a parameter so the server
+	// can't proceed with the request. This may also be returned if the
+	// request includes an unsupported parameter or repeats a parameter.
+	ErrorInvalidRequest = "invalid_request"
+
+	// ErrorInvalidClient – Client authentication failed, such as if the
+	// request contains an invalid client ID or secret. Send an HTTP 401
+	// response in this case.
+	ErrorInvalidClient = "invalid_client"
+
+	// ErrorInvalidGrant – The authorization code (or user's password for the
+	// password grant type) is invalid or expired. This is also the error you
+	// would return if the redirect URL given in the authorization grant does
+	// not match the URL provided in this access token request.
+	ErrorInvalidGrant = "invalid_grant"
+
+	// ErrorUnsupportedGrantType – If a grant type is requested that the
+	// authorization server doesn't recognize, use this code. Note that
+	// unknown grant types also use this specific error code rather than using
+	// the ErrorInvalidRequest above.
+	ErrorUnsupportedGrantType = "unsupported_grant_type"
+
+	ErrorInternal = "internal_server_error"
+)
+
+func Error(w http.ResponseWriter, error string, description string) {
+	var code = http.StatusBadRequest
+	if error == ErrorInvalidClient {
+		code = http.StatusUnauthorized
+	} else if error == ErrorInternal {
+		code = http.StatusInternalServerError
+	}
+
+	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+
+	w.WriteHeader(code)
+	var bytes, _ = json.Marshal(ErrorResponse{error, description})
+	w.Write(bytes)
+}

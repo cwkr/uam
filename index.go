@@ -2,52 +2,42 @@ package main
 
 import (
 	"crypto/x509"
+	_ "embed"
 	"encoding/pem"
 	"fmt"
+	"github.com/cwkr/jwtoker/htmlutil"
 	"html/template"
 	"math/rand"
 	"net/http"
+	"strings"
 )
 
+//go:embed templates/index.gohtml
+var indexTpl string
+
 func Index(w http.ResponseWriter, r *http.Request) {
-	const tpl = `<!doctype html>
-<h1>Jwtoker</h1>
-<a href="jwks">JSON Web Key Set</a>
-<br>
-<br>
-<pre>
-{{.public_key}}
-</pre>
-<br>
-<a href="http://localhost:{{.port}}/auth?response_type=token&client_id=joker&redirect_uri=http%3A%2F%2Flocalhost%3A{{.port}}%2F&state={{.state}}">Get token</a><br>
-<pre style="white-space: pre-wrap; max-width: 40em; word-wrap: break-word;">
-<script>
-var hash = window.location.hash.substr(1);
+	if r.URL.Path != "/" {
+		htmlutil.Error(w, "Resource not found", http.StatusNotFound)
+		return
+	}
 
-var hash_params = hash.split('&').reduce(function (result, item) {
-    var parts = item.split('=');
-    result[parts[0]] = parts[1];
-    return result;
-}, {});
+	var t, _ = template.New("index").Parse(indexTpl)
 
-if (hash_params.access_token) {
-	document.write(hash_params.access_token);
-}
-</script>
-</pre>`
-	t, _ := template.New("index").Parse(tpl)
+	var pubASN1 = x509.MarshalPKCS1PublicKey(&rsaPrivKey.PublicKey)
 
-	pubASN1 := x509.MarshalPKCS1PublicKey(&rsaPrivKey.PublicKey)
-
-	pubBytes := pem.EncodeToMemory(&pem.Block{
+	var pubBytes = pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PUBLIC KEY",
 		Bytes: pubASN1,
 	})
 
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
-	t.Execute(w, map[string]string{
+	var err = t.ExecuteTemplate(w, "index", map[string]string{
+		"issuer": strings.TrimRight(config.Issuer, "/"),
 		"public_key": string(pubBytes),
-		"port": fmt.Sprint(config.Port),
 		"state": fmt.Sprint(rand.Int()),
+		"client_id": config.ClientID,
 	})
+	if err != nil {
+		htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }

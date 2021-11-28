@@ -1,8 +1,12 @@
 package main
 
 type JwtokerConfig struct {
-	Port     int                    `json:"port,omitempty"`
-	Username string                 `json:"username,omitempty"`
-	Key      string                 `json:"key,omitempty"`
-	Claims   map[string]interface{} `json:"claims,omitempty"`
+	Issuer string `json:"issuer"`
+	Port int `json:"port"`
+	Username string `json:"username"`
+	Key string `json:"key"`
+	ClientID string `json:"client_id"`
+	Claims map[string]interface{} `json:"claims"`
+	Scopes []string `json:"scopes"`
+	AccessTokenLifetime int `json:"access_token_lifetime"`
 }

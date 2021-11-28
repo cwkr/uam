@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<h1>Jwtoker</h1>
+<a href="{{.issuer}}/jwks">JSON Web Key Set</a>
+<br>
+<br>
+<pre>
+{{.public_key}}
+</pre>
+<br>
+<a href="{{.issuer}}/auth?response_type=token&client_id={{.client_id}}&redirect_uri={{.issuer}}%2f&state={{.state}}">Get token</a><br>
+<pre style="white-space: pre-wrap; max-width: 40em; word-wrap: break-word;">
+<script>
+var hash = window.location.hash.substr(1);
+
+var hash_params = hash.split('&').reduce(function (result, item) {
+    var parts = item.split('=');
+    result[parts[0]] = parts[1];
+    return result;
+}, {});
+
+if (hash_params.access_token) {
+    document.write(hash_params.access_token);
+}
+</script>
+</pre>
