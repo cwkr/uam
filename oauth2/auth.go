@@ -2,7 +2,7 @@ package oauth2
 
 import (
 	"fmt"
-	"github.com/cwkr/jwtoker/htmlutil"
+	"github.com/cwkr/auth-server/htmlutil"
 	"log"
 	"net/http"
 	"net/url"

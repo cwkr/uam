@@ -5,7 +5,7 @@ import (
 	_ "embed"
 	"encoding/pem"
 	"fmt"
-	"github.com/cwkr/jwtoker/htmlutil"
+	"github.com/cwkr/auth-server/htmlutil"
 	"html/template"
 	"math/rand"
 	"net/http"
@@ -32,10 +32,10 @@ func Index(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
 	var err = t.ExecuteTemplate(w, "index", map[string]string{
-		"issuer": strings.TrimRight(config.Issuer, "/"),
+		"issuer":     strings.TrimRight(cfg.Issuer, "/"),
 		"public_key": string(pubBytes),
-		"state": fmt.Sprint(rand.Int()),
-		"client_id": config.ClientID,
+		"state":      fmt.Sprint(rand.Int()),
+		"client_id":  cfg.ClientID,
 	})
 	if err != nil {
 		htmlutil.Error(w, err.Error(), http.StatusInternalServerError)

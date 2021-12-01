@@ -51,13 +51,13 @@ func (t *tokenService) GenerateAccessToken(username string, customClaims Claims)
 	var now = time.Now().UTC().Unix()
 
 	var claims = Claims{
-		ClaimIssuer: t.issuer,
-		ClaimSubject: username,
-		ClaimPrincipal: username,
-		ClaimIssuedAtTime: now,
-		ClaimNotBeforeTime: now,
+		ClaimIssuer:         t.issuer,
+		ClaimSubject:        username,
+		ClaimPrincipal:      username,
+		ClaimIssuedAtTime:   now,
+		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + int64(t.accessTokenLifetime),
-		ClaimScope: strings.Join(t.scopes, " "),
+		ClaimScope:          strings.Join(t.scopes, " "),
 	}
 
 	for key, value := range customClaims {
@@ -71,13 +71,13 @@ func (t *tokenService) GenerateAuthCode(username, clientID string) (string, erro
 	var now = time.Now().UTC().Unix()
 
 	var claims = Claims{
-		ClaimIssuer: t.issuer,
-		ClaimSubject: username,
-		ClaimClientID: clientID,
-		ClaimIssuedAtTime: now,
-		ClaimNotBeforeTime: now,
+		ClaimIssuer:         t.issuer,
+		ClaimSubject:        username,
+		ClaimClientID:       clientID,
+		ClaimIssuedAtTime:   now,
+		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + 300,
-		ClaimScope: strings.Join(t.scopes, " "),
+		ClaimScope:          strings.Join(t.scopes, " "),
 	}
 
 	return jwt.Signed(t.signer).Claims(map[string]interface{}(claims)).CompactSerialize()
@@ -87,13 +87,13 @@ func (t *tokenService) GenerateRefreshToken(username, clientID string) (string, 
 	var now = time.Now().UTC().Unix()
 
 	var claims = Claims{
-		ClaimIssuer: t.issuer,
-		ClaimSubject: username,
-		ClaimClientID: clientID,
-		ClaimIssuedAtTime: now,
-		ClaimNotBeforeTime: now,
+		ClaimIssuer:         t.issuer,
+		ClaimSubject:        username,
+		ClaimClientID:       clientID,
+		ClaimIssuedAtTime:   now,
+		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + int64(t.accessTokenLifetime * 10),
-		ClaimScope: strings.Join(t.scopes, " "),
+		ClaimScope:          strings.Join(t.scopes, " "),
 	}
 
 	return jwt.Signed(t.signer).Claims(map[string]interface{}(claims)).CompactSerialize()
@@ -138,7 +138,7 @@ func NewTokenService(privateKey *rsa.PrivateKey, issuer string, scopes []string,
 
 type tokenHandler struct {
 	tokenService TokenService
-	clientID string
+	clientID     string
 	customClaims Claims
 }
 
