@@ -10,7 +10,9 @@ import (
 	"flag"
 	"fmt"
 	"github.com/cwkr/auth-server/config"
+	"github.com/cwkr/auth-server/htmlutil"
 	"github.com/cwkr/auth-server/oauth2"
+	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"os"
@@ -42,7 +44,7 @@ func main() {
 
 	log.SetOutput(os.Stdout)
 
-	flag.StringVar(&configFilename, "config", "unhold.json", "config file")
+	flag.StringVar(&configFilename, "config", "auth-server.json", "config file")
 	flag.BoolVar(&showHelp, "help", false, "print help and exit")
 	flag.BoolVar(&initConfig, "init", false, "init config and exit")
 	flag.Parse()
@@ -57,7 +59,7 @@ func main() {
 		Issuer:              "http://localhost:1337/",
 		Port:                1337,
 		Username:            "user",
-		ClientID:            "app",
+		Clients:             config.Clients{"app": "https?:\\/\\/localhost(:\\d+)?\\/"},
 		AccessTokenLifetime: 3600,
 		Claims:              map[string]interface{}{"email": "user@example.org"},
 		Scopes:              []string{"profile", "email", "offline_access"},
@@ -118,7 +120,7 @@ func main() {
 	}
 
 	if initConfig {
-		fmt.Printf("Initializing config file %s", configFilename)
+		log.Printf("Initializing config file %s", configFilename)
 		configJson, _ := json.MarshalIndent(cfg, "", "  ")
 		err := os.WriteFile(configFilename, configJson, 0644)
 		if err != nil {
@@ -127,13 +129,16 @@ func main() {
 		os.Exit(0)
 	}
 
-	http.HandleFunc("/", Index)
-	http.Handle("/jwks", oauth2.JwksHandler(&rsaPrivKey.PublicKey))
-	http.Handle("/token", oauth2.TokenHandler(tokenService, cfg.ClientID, cfg.Claims))
-	http.Handle("/auth", oauth2.AuthHandler(tokenService, cfg.ClientID, cfg.Username, cfg.Claims))
+	var router = mux.NewRouter()
 
-	log.Printf("Listening on http://localhost:%d/\n", cfg.Port)
-	err = http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.Port), nil)
+	router.NotFoundHandler = htmlutil.NotFoundHandler()
+	router.HandleFunc("/", Index).Methods(http.MethodGet)
+	router.Handle("/jwks", oauth2.JwksHandler(&rsaPrivKey.PublicKey)).Methods(http.MethodGet)
+	router.Handle("/token", oauth2.TokenHandler(tokenService, cfg)).Methods(http.MethodPost)
+	router.Handle("/auth", oauth2.AuthHandler(tokenService, cfg)).Methods(http.MethodGet)
+
+	log.Printf("Listening on http://localhost:%d/", cfg.Port)
+	err = http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), router)
 	if err != nil {
 		panic(err)
 	}

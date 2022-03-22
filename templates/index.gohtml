@@ -7,7 +7,17 @@
 {{.public_key}}
 </pre>
 <br>
-<a href="{{.issuer}}/auth?response_type=token&client_id={{.client_id}}&redirect_uri={{.issuer}}%2f&state={{.state}}">Get token</a><br>
+<form method="get" action="{{.issuer}}/auth">
+    <input type="hidden" name="response_type" value="token">
+    <input type="hidden" name="redirect_uri" value="{{.issuer}}/">
+    <input type="hidden" name="state" value="{{.state}}">
+    <select name="client_id">
+    {{range .clients.ClientsMatchingRedirectURI (printf "%s/" .issuer)}}
+        <option value="{{.}}">{{.}}</option>
+    {{end}}
+    </select>
+    <button type="submit">Get token</button>
+</form>
 <pre style="white-space: pre-wrap; max-width: 40em; word-wrap: break-word;">
 <script>
 var hash = window.location.hash.substr(1);

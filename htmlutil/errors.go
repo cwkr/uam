@@ -14,3 +14,9 @@ func Error(w http.ResponseWriter, error string, code int) {
 	w.WriteHeader(code)
 	fmt.Fprintf(w, "<!DOCTYPE html><h1>%d %s</h1><p>%s</p>", code, statusText, error)
 }
+
+func NotFoundHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		Error(w, "page not found", http.StatusNotFound)
+	})
+}

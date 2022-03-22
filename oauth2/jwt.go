@@ -3,6 +3,7 @@ package oauth2
 import (
 	"crypto/rsa"
 	"encoding/json"
+	"github.com/cwkr/auth-server/config"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"log"
@@ -12,17 +13,17 @@ import (
 )
 
 const (
-	ClaimClientID = "client_id"
+	ClaimClientID       = "client_id"
 	ClaimExpirationTime = "exp"
-	ClaimIssuer = "iss"
-	ClaimIssuedAtTime = "iat"
-	ClaimNotBeforeTime = "nbf"
-	ClaimPrincipal = "prn"
-	ClaimScope = "scope"
-	ClaimSubject = "sub"
+	ClaimIssuer         = "iss"
+	ClaimIssuedAtTime   = "iat"
+	ClaimNotBeforeTime  = "nbf"
+	ClaimPrincipal      = "prn"
+	ClaimScope          = "scope"
+	ClaimSubject        = "sub"
 
 	GrantTypeAuthorizationCode = "authorization_code"
-	GrantTypeRefreshToken = "refresh_token"
+	GrantTypeRefreshToken      = "refresh_token"
 )
 
 type Claims map[string]interface{}
@@ -36,10 +37,10 @@ type TokenService interface {
 }
 
 type tokenService struct {
-	privateKey *rsa.PrivateKey
-	signer jose.Signer
-	issuer string
-	scopes []string
+	privateKey          *rsa.PrivateKey
+	signer              jose.Signer
+	issuer              string
+	scopes              []string
 	accessTokenLifetime int
 }
 
@@ -92,7 +93,7 @@ func (t *tokenService) GenerateRefreshToken(username, clientID string) (string, 
 		ClaimClientID:       clientID,
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
-		ClaimExpirationTime: now + int64(t.accessTokenLifetime * 10),
+		ClaimExpirationTime: now + int64(t.accessTokenLifetime*10),
 		ClaimScope:          strings.Join(t.scopes, " "),
 	}
 
@@ -111,8 +112,8 @@ func (t *tokenService) VerifyToken(rawToken string) (username string, valid bool
 		return "", false
 	}
 	err = claims.ValidateWithLeeway(jwt.Expected{
-		Issuer:  t.issuer,
-		Time: time.Now(),
+		Issuer: t.issuer,
+		Time:   time.Now(),
 	}, 0)
 	if err != nil {
 		log.Printf("!!! %s\n", err)
@@ -128,36 +129,36 @@ func NewTokenService(privateKey *rsa.PrivateKey, issuer string, scopes []string,
 		return nil, err
 	}
 	return &tokenService{
-		privateKey: privateKey,
-		signer: signer,
-		issuer: issuer,
-		scopes: scopes,
+		privateKey:          privateKey,
+		signer:              signer,
+		issuer:              issuer,
+		scopes:              scopes,
 		accessTokenLifetime: accessTokenLifetime,
 	}, nil
 }
 
 type tokenHandler struct {
 	tokenService TokenService
-	clientID     string
+	clients      config.Clients
 	customClaims Claims
 }
 
 func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("%s %s\n", r.Method, r.URL)
+	log.Printf("%s %s", r.Method, r.URL)
 
 	var clientID, _, basicAuth = r.BasicAuth()
 	if !basicAuth {
 		clientID = r.PostFormValue("client_id")
 	}
-	if clientID != j.clientID {
+	if _, clientExists := j.clients[clientID]; !clientExists {
 		Error(w, ErrorInvalidClient, "Wrong client id")
 		return
 	}
 	var (
-		grantType = strings.ToLower(r.PostFormValue("grant_type"))
-		code = r.PostFormValue("code")
+		grantType    = strings.ToLower(r.PostFormValue("grant_type"))
+		code         = r.PostFormValue("code")
 		refreshToken = r.PostFormValue("refresh_token")
-		accessToken string
+		accessToken  string
 	)
 
 	switch grantType {
@@ -169,7 +170,7 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var username, valid = j.tokenService.VerifyToken(code)
 		if valid {
 			accessToken, _ = j.tokenService.GenerateAccessToken(username, j.customClaims)
-			refreshToken, _ = j.tokenService.GenerateRefreshToken(username, j.clientID)
+			refreshToken, _ = j.tokenService.GenerateRefreshToken(username, clientID)
 		} else {
 			Error(w, ErrorInvalidGrant, "Invalid auth code")
 			return
@@ -208,10 +209,10 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
-func TokenHandler(tokenService TokenService, clientID string, customClaims Claims) http.Handler {
+func TokenHandler(tokenService TokenService, cfg *config.Config) http.Handler {
 	return &tokenHandler{
 		tokenService: tokenService,
-		clientID: clientID,
-		customClaims: customClaims,
+		clients:      cfg.Clients,
+		customClaims: cfg.Claims,
 	}
 }

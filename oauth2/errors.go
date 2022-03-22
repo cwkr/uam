@@ -22,6 +22,10 @@ const (
 	// not match the URL provided in this access token request.
 	ErrorInvalidGrant = "invalid_grant"
 
+	// ErrorRedirectURIMismatch - The redirect URI is invalid for the
+	// requested client id
+	ErrorRedirectURIMismatch = "redirect_uri_mismatch"
+
 	// ErrorUnsupportedGrantType – If a grant type is requested that the
 	// authorization server doesn't recognize, use this code. Note that
 	// unknown grant types also use this specific error code rather than using
