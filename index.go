@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/cwkr/auth-server/htmlutil"
 	"html/template"
+	"log"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -16,11 +17,7 @@ import (
 var indexTpl string
 
 func Index(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		htmlutil.Error(w, "Resource not found", http.StatusNotFound)
-		return
-	}
-
+	log.Printf("%s %s", r.Method, r.URL)
 	var t, _ = template.New("index").Parse(indexTpl)
 
 	var pubASN1 = x509.MarshalPKCS1PublicKey(&rsaPrivKey.PublicKey)

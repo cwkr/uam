@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -13,7 +14,10 @@ import (
 	"github.com/cwkr/auth-server/htmlutil"
 	"github.com/cwkr/auth-server/oauth2"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 	"log"
+	"math"
+	"math/big"
 	"net/http"
 	"os"
 	"strings"
@@ -36,6 +40,19 @@ func FileExists(name string) bool {
 	return false
 }
 
+func RandomBytesString(max int) string {
+	var bytes []byte = make([]byte, 0, max)
+	for i := 0; i < max; i++ {
+		nBig, err := rand.Int(rand.Reader, big.NewInt(math.MaxUint8))
+		if err != nil {
+			panic(err)
+		}
+		bytes = append(bytes, byte(nBig.Int64()))
+	}
+
+	return base64.URLEncoding.EncodeToString(bytes)
+}
+
 func main() {
 	var err error
 	var configFilename string
@@ -56,13 +73,26 @@ func main() {
 
 	// Set defaults
 	cfg = &config.Config{
-		Issuer:              "http://localhost:1337/",
-		Port:                1337,
-		Username:            "user",
-		Clients:             config.Clients{"app": "https?:\\/\\/localhost(:\\d+)?\\/"},
+		Issuer: "http://localhost:1337/",
+		Port:   1337,
+		Users: map[string]string{
+			"user": "$2a$12$yos0Nv/lfhjKjJ7CSmkCteSJRmzkirYwGFlBqeY4ss3o3nFSb5WDy",
+		},
+		UserDetails: map[string]map[string]interface{}{
+			"user": {
+				"email": "user@example.org",
+			},
+		},
+		Clients: config.Clients{
+			"app": "https?:\\/\\/localhost(:\\d+)?\\/",
+		},
 		AccessTokenLifetime: 3600,
-		Claims:              map[string]interface{}{"email": "user@example.org"},
-		Scopes:              []string{"profile", "email", "offline_access"},
+		Claims: map[string]interface{}{
+			"email": "user@example.org",
+		},
+		Scopes:     []string{"profile", "email", "offline_access"},
+		SessionID:  "ASESSION",
+		SessionKey: RandomBytesString(32),
 	}
 
 	configBytes, err := os.ReadFile(configFilename)
@@ -128,6 +158,12 @@ func main() {
 		}
 		os.Exit(0)
 	}
+	sessionKeyBytes, err := base64.URLEncoding.DecodeString(cfg.SessionKey)
+	if err != nil {
+		panic(err)
+	}
+	var sessionStore = sessions.NewCookieStore(sessionKeyBytes, sessionKeyBytes)
+	sessionStore.Options.HttpOnly = true
 
 	var router = mux.NewRouter()
 
@@ -135,7 +171,9 @@ func main() {
 	router.HandleFunc("/", Index).Methods(http.MethodGet)
 	router.Handle("/jwks", oauth2.JwksHandler(&rsaPrivKey.PublicKey)).Methods(http.MethodGet)
 	router.Handle("/token", oauth2.TokenHandler(tokenService, cfg)).Methods(http.MethodPost)
-	router.Handle("/auth", oauth2.AuthHandler(tokenService, cfg)).Methods(http.MethodGet)
+	router.Handle("/auth", oauth2.AuthHandler(tokenService, cfg, sessionStore)).Methods(http.MethodGet)
+	router.Handle("/login", LoginHandler(cfg, sessionStore)).Methods(http.MethodGet, http.MethodPost)
+	router.Handle("/logout", LogoutHandler(cfg, sessionStore))
 
 	log.Printf("Listening on http://localhost:%d/", cfg.Port)
 	err = http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), router)

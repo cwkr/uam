@@ -7,6 +7,8 @@
 {{.public_key}}
 </pre>
 <br>
+<a href="{{.issuer}}/logout">Logout</a><br>
+<br>
 <form method="get" action="{{.issuer}}/auth">
     <input type="hidden" name="response_type" value="token">
     <input type="hidden" name="redirect_uri" value="{{.issuer}}/">
