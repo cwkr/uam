@@ -3,12 +3,15 @@ package oauth2
 import (
 	"crypto/rsa"
 	"encoding/json"
-	"github.com/cwkr/auth-server/config"
+	"fmt"
+	"github.com/cwkr/auth-server/stringutil"
+	"github.com/cwkr/auth-server/userstore"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"log"
 	"net/http"
 	"strings"
+	"text/template"
 	"time"
 )
 
@@ -21,6 +24,7 @@ const (
 	ClaimPrincipal      = "prn"
 	ClaimScope          = "scope"
 	ClaimSubject        = "sub"
+	ClaimUserID         = "user_id"
 
 	GrantTypeAuthorizationCode = "authorization_code"
 	GrantTypeRefreshToken      = "refresh_token"
@@ -28,12 +32,18 @@ const (
 
 type Claims map[string]interface{}
 
+type User struct {
+	userstore.User
+	UserID string
+}
+
 type TokenService interface {
-	GenerateAccessToken(username string, customClaims Claims) (string, error)
-	GenerateAuthCode(username, clientID string) (string, error)
-	GenerateRefreshToken(username, clientID string) (string, error)
-	VerifyToken(rawToken string) (username string, valid bool)
+	GenerateAccessToken(user User) (string, error)
+	GenerateAuthCode(user User, clientID string) (string, error)
+	GenerateRefreshToken(user User, clientID string) (string, error)
+	VerifyToken(rawToken string) (user User, valid bool)
 	AccessTokenLifetime() int
+	Issuer() string
 }
 
 type tokenService struct {
@@ -42,39 +52,77 @@ type tokenService struct {
 	issuer              string
 	scopes              []string
 	accessTokenLifetime int
+	customClaims        Claims
 }
 
-func (t *tokenService) AccessTokenLifetime() int {
+func (t tokenService) AccessTokenLifetime() int {
 	return t.accessTokenLifetime
 }
 
-func (t *tokenService) GenerateAccessToken(username string, customClaims Claims) (string, error) {
+func (t tokenService) Issuer() string {
+	return t.issuer
+}
+
+func (t tokenService) GenerateAccessToken(user User) (string, error) {
 	var now = time.Now().UTC().Unix()
 
 	var claims = Claims{
 		ClaimIssuer:         t.issuer,
-		ClaimSubject:        username,
-		ClaimPrincipal:      username,
+		ClaimSubject:        user.UserID,
+		ClaimPrincipal:      user.UserID,
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + int64(t.accessTokenLifetime),
 		ClaimScope:          strings.Join(t.scopes, " "),
 	}
 
-	for key, value := range customClaims {
-		claims[key] = value
+	var customFuncs = template.FuncMap{
+		"join": func(sep interface{}, elems []string) string {
+			switch sep.(type) {
+			case string:
+				return strings.Join(elems, sep.(string))
+			case int:
+				return strings.Join(elems, string(rune(sep.(int))))
+			}
+			return strings.Join(elems, fmt.Sprint(sep))
+		},
+		"upper": strings.ToUpper,
+		"lower": strings.ToLower,
+	}
+
+	for key, value := range t.customClaims {
+		switch value.(type) {
+		case string:
+			var t, err = template.New(key).Funcs(customFuncs).Parse(value.(string))
+			if err != nil {
+				return "", err
+			}
+			var sb strings.Builder
+			err = t.ExecuteTemplate(&sb, key, user)
+			if err != nil {
+				return "", err
+			}
+			var customValue = sb.String()
+			if customValue != "" {
+				claims[key] = customValue
+			}
+		default:
+			claims[key] = value
+		}
 	}
 
 	return jwt.Signed(t.signer).Claims(map[string]interface{}(claims)).CompactSerialize()
 }
 
-func (t *tokenService) GenerateAuthCode(username, clientID string) (string, error) {
+func (t tokenService) GenerateAuthCode(user User, clientID string) (string, error) {
 	var now = time.Now().UTC().Unix()
 
 	var claims = Claims{
 		ClaimIssuer:         t.issuer,
-		ClaimSubject:        username,
+		ClaimSubject:        stringutil.RandomBytesString(16),
 		ClaimClientID:       clientID,
+		ClaimUserID:         user.UserID,
+		"user":              user.User,
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + 300,
@@ -84,13 +132,15 @@ func (t *tokenService) GenerateAuthCode(username, clientID string) (string, erro
 	return jwt.Signed(t.signer).Claims(map[string]interface{}(claims)).CompactSerialize()
 }
 
-func (t *tokenService) GenerateRefreshToken(username, clientID string) (string, error) {
+func (t tokenService) GenerateRefreshToken(user User, clientID string) (string, error) {
 	var now = time.Now().UTC().Unix()
 
 	var claims = Claims{
 		ClaimIssuer:         t.issuer,
-		ClaimSubject:        username,
+		ClaimSubject:        stringutil.RandomBytesString(16),
 		ClaimClientID:       clientID,
+		ClaimUserID:         user.UserID,
+		"user":              user.User,
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + int64(t.accessTokenLifetime*10),
@@ -100,16 +150,20 @@ func (t *tokenService) GenerateRefreshToken(username, clientID string) (string, 
 	return jwt.Signed(t.signer).Claims(map[string]interface{}(claims)).CompactSerialize()
 }
 
-func (t *tokenService) VerifyToken(rawToken string) (username string, valid bool) {
+func (t tokenService) VerifyToken(rawToken string) (User, bool) {
 	var token, err = jwt.ParseSigned(rawToken)
 	if err != nil {
 		log.Printf("!!! %s\n", err)
-		return "", false
+		return User{}, false
 	}
 	var claims = jwt.Claims{}
-	if err := token.Claims(&t.privateKey.PublicKey, &claims); err != nil {
+	var userData = struct {
+		UserID string         `json:"user_id"`
+		User   userstore.User `json:"user"`
+	}{}
+	if err := token.Claims(&t.privateKey.PublicKey, &claims, &userData); err != nil {
 		log.Printf("!!! %s\n", err)
-		return "", false
+		return User{}, false
 	}
 	err = claims.ValidateWithLeeway(jwt.Expected{
 		Issuer: t.issuer,
@@ -117,13 +171,13 @@ func (t *tokenService) VerifyToken(rawToken string) (username string, valid bool
 	}, 0)
 	if err != nil {
 		log.Printf("!!! %s\n", err)
-		return "", false
+		return User{}, false
 	} else {
-		return claims.Subject, true
+		return User{UserID: userData.UserID, User: userData.User}, true
 	}
 }
 
-func NewTokenService(privateKey *rsa.PrivateKey, issuer string, scopes []string, accessTokenLifetime int) (TokenService, error) {
+func NewTokenService(privateKey *rsa.PrivateKey, issuer string, scopes []string, accessTokenLifetime int, customClaims Claims) (TokenService, error) {
 	var signer, err = jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}, nil)
 	if err != nil {
 		return nil, err
@@ -134,13 +188,13 @@ func NewTokenService(privateKey *rsa.PrivateKey, issuer string, scopes []string,
 		issuer:              issuer,
 		scopes:              scopes,
 		accessTokenLifetime: accessTokenLifetime,
+		customClaims:        customClaims,
 	}, nil
 }
 
 type tokenHandler struct {
 	tokenService TokenService
-	clients      config.Clients
-	customClaims Claims
+	clients      Clients
 }
 
 func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -163,26 +217,26 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch grantType {
 	case GrantTypeAuthorizationCode:
-		if IsAnyEmpty(clientID, code) {
+		if stringutil.IsAnyEmpty(clientID, code) {
 			Error(w, ErrorInvalidRequest, "Code and client id is required")
 			return
 		}
-		var username, valid = j.tokenService.VerifyToken(code)
+		var user, valid = j.tokenService.VerifyToken(code)
 		if valid {
-			accessToken, _ = j.tokenService.GenerateAccessToken(username, j.customClaims)
-			refreshToken, _ = j.tokenService.GenerateRefreshToken(username, clientID)
+			accessToken, _ = j.tokenService.GenerateAccessToken(user)
+			refreshToken, _ = j.tokenService.GenerateRefreshToken(user, clientID)
 		} else {
 			Error(w, ErrorInvalidGrant, "Invalid auth code")
 			return
 		}
 	case GrantTypeRefreshToken:
-		if IsAnyEmpty(clientID, refreshToken) {
+		if stringutil.IsAnyEmpty(clientID, refreshToken) {
 			Error(w, ErrorInvalidRequest, "Refresh token and client id is required")
 			return
 		}
-		var username, valid = j.tokenService.VerifyToken(refreshToken)
+		var user, valid = j.tokenService.VerifyToken(refreshToken)
 		if valid {
-			accessToken, _ = j.tokenService.GenerateAccessToken(username, j.customClaims)
+			accessToken, _ = j.tokenService.GenerateAccessToken(user)
 			refreshToken = ""
 		} else {
 			Error(w, ErrorInvalidGrant, "Invalid auth code")
@@ -209,10 +263,9 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
-func TokenHandler(tokenService TokenService, cfg *config.Config) http.Handler {
+func TokenHandler(tokenService TokenService, clients Clients) http.Handler {
 	return &tokenHandler{
 		tokenService: tokenService,
-		clients:      cfg.Clients,
-		customClaims: cfg.Claims,
+		clients:      clients,
 	}
 }

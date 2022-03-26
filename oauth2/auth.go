@@ -2,9 +2,10 @@ package oauth2
 
 import (
 	"fmt"
-	"github.com/cwkr/auth-server/config"
 	"github.com/cwkr/auth-server/htmlutil"
 	"github.com/cwkr/auth-server/httputil"
+	"github.com/cwkr/auth-server/stringutil"
+	"github.com/cwkr/auth-server/userstore"
 	"github.com/gorilla/sessions"
 	"log"
 	"net/http"
@@ -13,51 +14,45 @@ import (
 	"strings"
 )
 
-type Authenticator interface {
-	Authenticate(userID, password string) (map[string]interface{}, bool)
-	Lookup(userID string) (map[string]interface{}, bool)
-}
-
 type authHandler struct {
 	tokenService  TokenService
-	config        *config.Config
-	authenticator Authenticator
+	authenticator userstore.Authenticator
 	sessionStore  sessions.Store
+	sessionID     string
+	clients       Clients
 }
 
 func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
-	var session, _ = a.sessionStore.Get(r, a.config.SessionID)
+	var session, _ = a.sessionStore.Get(r, a.sessionID)
 
 	var (
 		responseType = strings.ToLower(r.FormValue("response_type"))
 		clientID     = r.FormValue("client_id")
 		redirectURI  = r.FormValue("redirect_uri")
 		state        = r.FormValue("state")
-		userID       string
+		user         User
 	)
 
-	if uid := session.Values["user_id"]; uid != nil {
-		userID = uid.(string)
-	}
-
-	if userID == "" {
-		httputil.RedirectQuery(w, r, strings.TrimRight(a.config.Issuer, "/")+"/login", r.URL.Query())
+	if usr, uid := session.Values["user"], session.Values["user_id"]; usr != nil && uid != nil {
+		user = User{UserID: uid.(string), User: usr.(userstore.User)}
+	} else {
+		httputil.RedirectQuery(w, r, strings.TrimRight(a.tokenService.Issuer(), "/")+"/login", r.URL.Query())
 		return
 	}
 
-	if IsAnyEmpty(responseType, clientID, redirectURI) {
+	if stringutil.IsAnyEmpty(responseType, clientID, redirectURI) {
 		htmlutil.Error(w, ErrorInvalidRequest, http.StatusBadRequest)
 		return
 	}
 
-	if _, clientExists := a.config.Clients[clientID]; !clientExists {
+	if _, clientExists := a.clients[clientID]; !clientExists {
 		htmlutil.Error(w, ErrorInvalidClient, http.StatusForbidden)
 		return
 	}
 
-	if redirectURIPattern := a.config.Clients[clientID]; redirectURIPattern != "" {
+	if redirectURIPattern := a.clients[clientID]; redirectURIPattern != "" {
 		if !regexp.MustCompile(redirectURIPattern).MatchString(redirectURI) {
 			htmlutil.Error(w, ErrorRedirectURIMismatch, http.StatusBadRequest)
 			return
@@ -66,7 +61,7 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch responseType {
 	case "token":
-		var x, err = a.tokenService.GenerateAccessToken(userID, a.config.Claims)
+		var x, err = a.tokenService.GenerateAccessToken(user)
 		if err != nil {
 			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -81,7 +76,7 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"state":        {state},
 		})
 	case "code":
-		var x, err = a.tokenService.GenerateAuthCode(userID, clientID)
+		var x, err = a.tokenService.GenerateAuthCode(user, clientID)
 		if err != nil {
 			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -95,11 +90,12 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func AuthHandler(tokenService TokenService, cfg *config.Config, sessionStore sessions.Store) http.Handler {
+func AuthHandler(tokenService TokenService, authenticator userstore.Authenticator, clients Clients, sessionStore sessions.Store, sessionID string) http.Handler {
 	return &authHandler{
 		tokenService:  tokenService,
-		config:        cfg,
-		authenticator: cfg,
+		authenticator: authenticator,
+		clients:       clients,
 		sessionStore:  sessionStore,
+		sessionID:     sessionID,
 	}
 }
