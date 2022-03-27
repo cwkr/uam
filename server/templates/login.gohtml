@@ -1,12 +1,21 @@
 <!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{ .title }} - Login</title>
+    <link rel="stylesheet" href="style">
+</head>
+<body>
 <h1>Login</h1>
-{{with .message}}
-    <div style="color: red;">{{.}}</div>
-{{end}}
-<form method="post" action="{{.query}}">
-    <label for="user_id">Username</label><br>
-    <input type="text" id="user_id" name="user_id"{{with .userID}} value="{{.}}"{{end}}><br>
-    <label for="password_plain">Password</label><br>
-    <input type="password" id="password_plain" name="password_plain"><br>
+{{ with .message }}
+    <div style="color: crimson;">{{ . }}</div>
+{{ end }}
+<form method="post" action="{{ .query }}">
+    <label for="user_id">Username</label>
+    <input type="text" id="user_id" name="user_id"{{ with .userID }} value="{{ . }}"{{ end }}>
+    <label for="password_plain">Password</label>
+    <input type="password" id="password_plain" name="password_plain">
     <button type="submit">Login</button>
 </form>
+</body>
+</html>

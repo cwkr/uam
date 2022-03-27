@@ -39,7 +39,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		userID = r.PostFormValue(FieldUserID)
 		password = r.PostFormValue(FieldPasswordPlain)
 		if stringutil.IsAnyEmpty(userID, password) {
-			message = "Username and password must no be empty"
+			message = "Username and password must not be empty"
 		} else {
 			if user, authenticated := j.authenticator.Authenticate(userID, password); authenticated {
 				session.Values["user_id"] = userID
@@ -65,6 +65,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"query":   template.HTML("?" + r.URL.RawQuery),
 		"message": message,
 		"userID":  userID,
+		"title":   j.settings.Title,
 	})
 	if err != nil {
 		htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
@@ -77,20 +78,4 @@ func LoginHandler(settings *Settings, sessionStore sessions.Store) http.Handler 
 		authenticator: settings,
 		sessionStore:  sessionStore,
 	}
-}
-
-func LogoutHandler(cfg *Settings, sessionStore sessions.Store) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var session, _ = sessionStore.Get(r, cfg.SessionID)
-		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
-		w.Header().Set("Pragma", "no-cache")
-		if !session.IsNew {
-			session.Options.MaxAge = -1
-			if err := session.Save(r, w); err != nil {
-				htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			htmlutil.Error(w, "Logged out", http.StatusOK)
-		}
-	})
 }

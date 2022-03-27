@@ -1,37 +1,103 @@
 <!DOCTYPE html>
-<h1>Auth Server</h1>
-<a href="{{.issuer}}/jwks">JSON Web Key Set</a>
-<br>
-<br>
-<pre>
-{{.public_key}}
-</pre>
-<br>
-<a href="{{.issuer}}/logout">Logout</a><br>
-<br>
-<form method="get" action="{{.issuer}}/auth">
-    <input type="hidden" name="response_type" value="token">
-    <input type="hidden" name="redirect_uri" value="{{.issuer}}/">
-    <input type="hidden" name="state" value="{{.state}}">
-    <select name="client_id">
-    {{range .clients.ClientsMatchingRedirectURI (printf "%s/" .issuer)}}
-        <option value="{{.}}">{{.}}</option>
-    {{end}}
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{ .title }}</title>
+    <link rel="stylesheet" href="style">
+    <script>
+        function remember() {
+            const state = document.getElementById("state").value;
+            const clientId = document.getElementById("client_id").value;
+            const responseType = document.getElementById("response_type").value;
+            sessionStorage.setItem("client_id", clientId);
+            sessionStorage.setItem("response_type", responseType);
+            if (responseType === "code") {
+                sessionStorage.setItem(state, clientId);
+            }
+        }
+    </script>
+</head>
+<body>
+<h1>{{ .title }}</h1>
+{{ if and .user_id .user }}
+<h2>Current user: {{ .user_id }}</h2>
+<form method="get" action="{{ .issuer }}/logout">
+    <input type="hidden" name="state" value="{{ .state }}">
+    <button type="submit">Logout</button>
+</form>
+{{ end }}
+<h2>OAuth2</h2>
+<form method="get" action="{{ .issuer }}/auth" onsubmit="remember()">
+    <input type="hidden" name="redirect_uri" value="{{ .issuer }}/">
+    <input type="hidden" id="state" name="state" value="{{ .state }}">
+    <label for="response_type">Flow</label>
+    <select id="response_type" name="response_type">
+        <option value="token">Implicit</option>
+        <option value="code">Authorization Code</option>
+    </select>
+    <label for="client_id">Client</label>
+    <select id="client_id" name="client_id">
+        {{range .clients.ClientsMatchingRedirectURI (printf "%s/" .issuer)}}
+            <option value="{{ . }}">{{ . }}</option>
+        {{end}}
     </select>
     <button type="submit">Get token</button>
 </form>
-<pre style="white-space: pre-wrap; max-width: 40em; word-wrap: break-word;">
-<script>
-var hash = window.location.hash.substr(1);
-
-var hash_params = hash.split('&').reduce(function (result, item) {
-    var parts = item.split('=');
-    result[parts[0]] = parts[1];
-    return result;
-}, {});
-
-if (hash_params.access_token) {
-    document.write(hash_params.access_token);
-}
-</script>
+<pre id="token_output" style="white-space: pre-wrap; word-wrap: break-word; min-height: 16em;">
 </pre>
+<h2>Public Key</h2>
+<div>
+    <a href="{{ .issuer }}/jwks">JSON Web Key Set</a>
+</div>
+<pre>
+{{ .public_key }}
+</pre>
+<h2>Spring Boot</h2>
+<h3>Maven dependency</h3>
+<pre style="white-space: pre-wrap; word-wrap: break-word;">
+<strong>&lt;dependency&gt;</strong>
+    <strong>&lt;groupId&gt;</strong>org.springframework.boot<strong>&lt;/groupId&gt;</strong>
+    <strong>&lt;artifactId&gt;</strong>spring-boot-starter-oauth2-resource-server<strong>&lt;/artifactId&gt;</strong>
+<strong>&lt;/dependency&gt;</strong>
+</pre>
+<h3>Configuration property</h3>
+<pre style="white-space: pre-wrap; word-wrap: break-word;">
+<strong>spring.security.oauth2.resourceserver.jwt.jwk-set-uri</strong>={{ .issuer }}/jwks
+</pre>
+
+<script>
+    const rememberedResponseType = sessionStorage.getItem("response_type");
+    if (rememberedResponseType) {
+        document.getElementById("response_type").value = rememberedResponseType;
+    }
+
+    const rememberedClientId = sessionStorage.getItem("client_id");
+    if (rememberedClientId) {
+        document.getElementById("client_id").value = rememberedClientId;
+    }
+
+    let urlParams = new URLSearchParams();
+    const hash = window.location.hash.substring(1);
+    if (hash) {
+        urlParams = new URLSearchParams(hash);
+    } else if (window.location.search) {
+        urlParams = new URLSearchParams(window.location.search);
+    }
+    if (urlParams.has("access_token") === true) {
+        document.getElementById("token_output").textContent = urlParams.get("access_token");
+    } else if (urlParams.has("code") === true) {
+        const postParams = new URLSearchParams({
+            "grant_type": "authorization_code",
+            "code": urlParams.get("code"),
+            "client_id": sessionStorage.getItem(urlParams.get("state"))
+        });
+        fetch("token", {method: "POST", body: postParams})
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("token_output").textContent = data.access_token;
+                sessionStorage.removeItem(urlParams.get("state"));
+            });
+    }
+</script>
+</body>
+</html>

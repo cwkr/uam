@@ -202,16 +202,16 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var clientID, _, basicAuth = r.BasicAuth()
 	if !basicAuth {
-		clientID = r.PostFormValue("client_id")
+		clientID = strings.TrimSpace(r.PostFormValue("client_id"))
 	}
 	if _, clientExists := j.clients[clientID]; !clientExists {
 		Error(w, ErrorInvalidClient, "Wrong client id")
 		return
 	}
 	var (
-		grantType    = strings.ToLower(r.PostFormValue("grant_type"))
-		code         = r.PostFormValue("code")
-		refreshToken = r.PostFormValue("refresh_token")
+		grantType    = strings.ToLower(strings.TrimSpace(r.PostFormValue("grant_type")))
+		code         = strings.TrimSpace(r.PostFormValue("code"))
+		refreshToken = strings.TrimSpace(r.PostFormValue("refresh_token"))
 		accessToken  string
 	)
 

@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"github.com/cwkr/auth-server/htmlutil"
+	"github.com/gorilla/sessions"
 	"html/template"
 	"log"
 	"math/rand"
@@ -18,8 +19,9 @@ import (
 var indexTpl string
 
 type indexHandler struct {
-	settings  *Settings
-	publicKey *rsa.PublicKey
+	settings     *Settings
+	sessionStore sessions.Store
+	publicKey    *rsa.PublicKey
 }
 
 func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -33,18 +35,26 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Bytes: pubASN1,
 	})
 
+	var session, _ = i.sessionStore.Get(r, i.settings.SessionID)
+
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
 	var err = t.ExecuteTemplate(w, "index", map[string]interface{}{
 		"issuer":     strings.TrimRight(i.settings.Issuer, "/"),
 		"public_key": string(pubBytes),
 		"state":      fmt.Sprint(rand.Int()),
 		"clients":    i.settings.Clients,
+		"title":      i.settings.Title,
+		"user_id":    session.Values["user_id"],
+		"user":       session.Values["user"],
 	})
 	if err != nil {
 		htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func IndexHandler(settings *Settings) http.Handler {
-	return &indexHandler{settings: settings}
+func IndexHandler(settings *Settings, sessionStore sessions.Store) http.Handler {
+	return &indexHandler{
+		settings:     settings,
+		sessionStore: sessionStore,
+	}
 }

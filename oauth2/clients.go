@@ -9,7 +9,6 @@ func (c Clients) ClientsMatchingRedirectURI(uri string) []string {
 	for client, redirectURIPattern := range c {
 		if regexp.MustCompile(redirectURIPattern).MatchString(uri) {
 			matches = append(matches, client)
-			break
 		}
 	}
 	return matches

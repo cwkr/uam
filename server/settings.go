@@ -24,6 +24,7 @@ type User struct {
 type Settings struct {
 	Issuer              string          `json:"issuer"`
 	Port                int             `json:"port"`
+	Title               string          `json:"title"`
 	Users               map[string]User `json:"users"`
 	Key                 string          `json:"key"`
 	Clients             oauth2.Clients  `json:"clients"`
@@ -39,6 +40,7 @@ func NewDefaultSettings() *Settings {
 	return &Settings{
 		Issuer: "http://localhost:1337/",
 		Port:   1337,
+		Title:  "Auth Server",
 		Users: map[string]User{
 			"user": {
 				User: userstore.User{

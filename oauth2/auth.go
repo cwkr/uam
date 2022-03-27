@@ -28,10 +28,10 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var session, _ = a.sessionStore.Get(r, a.sessionID)
 
 	var (
-		responseType = strings.ToLower(r.FormValue("response_type"))
-		clientID     = r.FormValue("client_id")
-		redirectURI  = r.FormValue("redirect_uri")
-		state        = r.FormValue("state")
+		responseType = strings.ToLower(strings.TrimSpace(r.FormValue("response_type")))
+		clientID     = strings.TrimSpace(r.FormValue("client_id"))
+		redirectURI  = strings.TrimSpace(r.FormValue("redirect_uri"))
+		state        = strings.TrimSpace(r.FormValue("state"))
 		user         User
 	)
 
