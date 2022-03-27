@@ -200,6 +200,17 @@ type tokenHandler struct {
 func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, POST")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Requested-With")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Allow", "OPTIONS, POST")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	var clientID, _, basicAuth = r.BasicAuth()
 	if !basicAuth {
 		clientID = strings.TrimSpace(r.PostFormValue("client_id"))
