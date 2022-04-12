@@ -1,12 +1,9 @@
 package main
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"flag"
 	"fmt"
+	"github.com/cwkr/auth-server/oauth2"
 	"log"
 	"os"
 )
@@ -14,14 +11,14 @@ import (
 func main() {
 	var (
 		outFilename string
-		keySize       int
-		rsaPrivateKey *rsa.PrivateKey
-		err           error
+		keySize     int
+		err         error
+		keyBytes    []byte
 	)
 
 	log.SetOutput(os.Stdout)
 
-	flag.StringVar(&outFilename, "out", "", "output file")
+	flag.StringVar(&outFilename, "o", "", "output file")
 	flag.IntVar(&keySize, "size", 2048, "key size")
 	flag.Parse()
 
@@ -29,16 +26,11 @@ func main() {
 		panic("key size less than 512")
 	}
 
-	rsaPrivateKey, err = rsa.GenerateKey(rand.Reader, keySize)
+	_, keyBytes, err = oauth2.GeneratePrivateKey(keySize)
 	if err != nil {
 		panic(err)
 	}
 
-	pubASN1 := x509.MarshalPKCS1PrivateKey(rsaPrivateKey)
-	keyBytes := pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: pubASN1,
-	})
 	if outFilename == "" {
 		fmt.Print(string(keyBytes))
 	} else {

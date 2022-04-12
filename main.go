@@ -53,7 +53,7 @@ func main() {
 		}
 	}
 
-	err = settings.LoadKey(initConfig)
+	err = settings.LoadKeys(initConfig)
 	if err != nil {
 		panic(err)
 	}
@@ -89,12 +89,18 @@ func main() {
 	var router = mux.NewRouter()
 
 	router.NotFoundHandler = htmlutil.NotFoundHandler()
-	router.Handle("/", server.IndexHandler(settings, sessionStore)).Methods(http.MethodGet)
-	router.Handle("/style", server.StyleHandler()).Methods(http.MethodGet)
-	router.Handle("/jwks", oauth2.JwksHandler(settings.PublicKey())).Methods(http.MethodGet, http.MethodOptions)
-	router.Handle("/token", oauth2.TokenHandler(tokenService, settings.Clients)).Methods(http.MethodOptions, http.MethodPost)
-	router.Handle("/auth", oauth2.AuthHandler(tokenService, settings, settings.Clients, sessionStore, settings.SessionID)).Methods(http.MethodGet)
-	router.Handle("/login", server.LoginHandler(settings, sessionStore)).Methods(http.MethodGet, http.MethodPost)
+	router.Handle("/", server.IndexHandler(settings, sessionStore)).
+		Methods(http.MethodGet)
+	router.Handle("/style", server.StyleHandler()).
+		Methods(http.MethodGet)
+	router.Handle("/jwks", oauth2.JwksHandler(settings.AllKeys())).
+		Methods(http.MethodGet, http.MethodOptions)
+	router.Handle("/token", oauth2.TokenHandler(tokenService, settings.Clients)).
+		Methods(http.MethodOptions, http.MethodPost)
+	router.Handle("/auth", oauth2.AuthHandler(tokenService, settings, settings.Clients, sessionStore, settings.SessionID)).
+		Methods(http.MethodGet)
+	router.Handle("/login", server.LoginHandler(settings, sessionStore)).
+		Methods(http.MethodGet, http.MethodPost)
 	router.Handle("/logout", server.LogoutHandler(settings, sessionStore))
 
 	log.Printf("Listening on http://localhost:%d/", settings.Port)

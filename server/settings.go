@@ -1,7 +1,6 @@
 package server
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -13,6 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -27,13 +27,16 @@ type Settings struct {
 	Title               string          `json:"title"`
 	Users               map[string]User `json:"users"`
 	Key                 string          `json:"key"`
+	AdditionalKeys      []string        `json:"additional_keys"`
 	Clients             oauth2.Clients  `json:"clients"`
 	Claims              oauth2.Claims   `json:"claims"`
 	Scopes              []string        `json:"scopes"`
 	AccessTokenLifetime int             `json:"access_token_lifetime"`
 	SessionSecret       string          `json:"session_secret"`
 	SessionID           string          `json:"session_id"`
-	rsaPrivateKey       *rsa.PrivateKey
+	rsaSigningKey       *rsa.PrivateKey
+	rsaSigningKeyID     string
+	rsaAdditionalKeys   map[string]*rsa.PublicKey
 }
 
 func NewDefaultSettings() *Settings {
@@ -69,11 +72,12 @@ func NewDefaultSettings() *Settings {
 	}
 }
 
-func (s *Settings) LoadKey(initConfig bool) error {
+func (s *Settings) LoadKeys(initConfig bool) error {
 	var err error
+	s.rsaSigningKeyID = "sigkey"
 	if strings.HasPrefix(s.Key, "-----BEGIN RSA PRIVATE KEY-----") {
 		block, _ := pem.Decode([]byte(s.Key))
-		s.rsaPrivateKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+		s.rsaSigningKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
 			return err
 		}
@@ -81,16 +85,12 @@ func (s *Settings) LoadKey(initConfig bool) error {
 		if !initConfig && s.Key != "" {
 			return errors.New("Missing key")
 		}
-		s.rsaPrivateKey, err = rsa.GenerateKey(rand.Reader, 2048)
+		var keyBytes []byte
+		s.rsaSigningKey, keyBytes, err = oauth2.GeneratePrivateKey(2048)
 		if err != nil {
 			return err
 		}
 
-		pubASN1 := x509.MarshalPKCS1PrivateKey(s.rsaPrivateKey)
-		keyBytes := pem.EncodeToMemory(&pem.Block{
-			Type:  "RSA PRIVATE KEY",
-			Bytes: pubASN1,
-		})
 		if s.Key == "" {
 			s.Key = string(keyBytes)
 		} else {
@@ -105,20 +105,32 @@ func (s *Settings) LoadKey(initConfig bool) error {
 			return err
 		}
 		block, _ := pem.Decode(pemBytes)
-		s.rsaPrivateKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+		s.rsaSigningKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
 			return err
 		}
+		s.rsaSigningKeyID = strings.TrimSuffix(filepath.Base(s.Key), filepath.Ext(s.Key))
 	}
-	return nil
+
+	s.rsaAdditionalKeys, err = oauth2.LoadPublicKeys(s.AdditionalKeys)
+	return err
 }
 
 func (s Settings) PrivateKey() *rsa.PrivateKey {
-	return s.rsaPrivateKey
+	return s.rsaSigningKey
 }
 
 func (s Settings) PublicKey() *rsa.PublicKey {
-	return &s.rsaPrivateKey.PublicKey
+	return &s.rsaSigningKey.PublicKey
+}
+
+func (s Settings) AllKeys() map[string]*rsa.PublicKey {
+	var allKeys = make(map[string]*rsa.PublicKey)
+	allKeys[s.rsaSigningKeyID] = s.PublicKey()
+	for kid, publicKey := range s.rsaAdditionalKeys {
+		allKeys[kid] = publicKey
+	}
+	return allKeys
 }
 
 func (s Settings) Authenticate(userID, password string) (userstore.User, bool) {
