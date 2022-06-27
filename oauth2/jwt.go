@@ -177,8 +177,8 @@ func (t tokenService) VerifyToken(rawToken string) (User, bool) {
 	}
 }
 
-func NewTokenService(privateKey *rsa.PrivateKey, issuer string, scopes []string, accessTokenLifetime int, customClaims Claims) (TokenService, error) {
-	var signer, err = jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}, nil)
+func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer string, scopes []string, accessTokenLifetime int, customClaims Claims) (TokenService, error) {
+	var signer, err = jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}, (&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", keyID))
 	if err != nil {
 		return nil, err
 	}

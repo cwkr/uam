@@ -83,7 +83,7 @@ func (s *Settings) LoadKeys(initConfig bool) error {
 		}
 	} else if s.Key == "" || !fileutil.FileExists(s.Key) {
 		if !initConfig && s.Key != "" {
-			return errors.New("Missing key")
+			return errors.New("missing key")
 		}
 		var keyBytes []byte
 		s.rsaSigningKey, keyBytes, err = oauth2.GeneratePrivateKey(2048)
@@ -122,6 +122,10 @@ func (s Settings) PrivateKey() *rsa.PrivateKey {
 
 func (s Settings) PublicKey() *rsa.PublicKey {
 	return &s.rsaSigningKey.PublicKey
+}
+
+func (s Settings) KeyID() string {
+	return s.rsaSigningKeyID
 }
 
 func (s Settings) AllKeys() map[string]*rsa.PublicKey {

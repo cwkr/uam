@@ -78,8 +78,20 @@ func LoadPublicKeys(keys []string) (map[string]*rsa.PublicKey, error) {
 			if err != nil {
 				return nil, err
 			}
+		case "public key":
+			var err error
+			var ok bool
+			var k interface{}
+			k, err = x509.ParsePKIXPublicKey(block.Bytes)
+			if err != nil {
+				return nil, err
+			}
+			rsaPublicKey, ok = k.(*rsa.PublicKey)
+			if !ok {
+				return nil, errors.New("only rsa keys are supported")
+			}
 		default:
-			return nil, errors.New("Unsupported key type: " + block.Type)
+			return nil, errors.New("unsupported key type: " + block.Type)
 		}
 
 		rsaPublicKeys[kid] = rsaPublicKey

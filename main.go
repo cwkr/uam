@@ -60,6 +60,7 @@ func main() {
 
 	tokenService, err = oauth2.NewTokenService(
 		settings.PrivateKey(),
+		settings.KeyID(),
 		settings.Issuer,
 		settings.Scopes,
 		settings.AccessTokenLifetime,
