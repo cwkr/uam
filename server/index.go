@@ -7,7 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"github.com/cwkr/auth-server/htmlutil"
-	"github.com/cwkr/auth-server/userstore"
+	"github.com/cwkr/auth-server/store"
 	"html/template"
 	"log"
 	"math/rand"
@@ -21,7 +21,7 @@ var indexTpl string
 
 type indexHandler struct {
 	settings      *Settings
-	authenticator userstore.Authenticator
+	authenticator store.Authenticator
 	publicKey     *rsa.PublicKey
 }
 
@@ -64,7 +64,7 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func IndexHandler(settings *Settings, authenticator userstore.Authenticator) http.Handler {
+func IndexHandler(settings *Settings, authenticator store.Authenticator) http.Handler {
 	return &indexHandler{
 		settings:      settings,
 		authenticator: authenticator,

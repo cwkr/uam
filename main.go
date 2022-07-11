@@ -9,12 +9,14 @@ import (
 	"github.com/cwkr/auth-server/htmlutil"
 	"github.com/cwkr/auth-server/oauth2"
 	"github.com/cwkr/auth-server/server"
-	"github.com/cwkr/auth-server/userstore"
+	"github.com/cwkr/auth-server/store"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"log"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 )
 
 var (
@@ -28,7 +30,8 @@ func main() {
 	var showHelp bool
 	var initConfig bool
 
-	gob.Register(userstore.User{})
+	gob.RegisterName("user", store.User{})
+	gob.RegisterName("time", time.Time{})
 
 	log.SetOutput(os.Stdout)
 
@@ -88,15 +91,20 @@ func main() {
 	sessionStore.Options.HttpOnly = true
 	sessionStore.Options.MaxAge = 0
 
-	var settingsAuthenticator = &server.SettingsAuthenticator{
-		SessionStore: sessionStore,
-		Settings:     settings,
+	var authenticator store.Authenticator
+	if strings.HasPrefix(settings.StoreURI, "postgresql:") {
+		if authenticator, err = store.NewPostgresAuthenticator(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime,
+			settings.StoreURI, settings.UserQuery, settings.GroupsQuery, settings.DetailsQuery); err != nil {
+			panic(err)
+		}
+	} else {
+		authenticator = store.NewEmbeddedAuthenticator(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime)
 	}
 
 	var router = mux.NewRouter()
 
 	router.NotFoundHandler = htmlutil.NotFoundHandler()
-	router.Handle("/", server.IndexHandler(settings, settingsAuthenticator)).
+	router.Handle("/", server.IndexHandler(settings, authenticator)).
 		Methods(http.MethodGet)
 	router.Handle("/style", server.StyleHandler()).
 		Methods(http.MethodGet)
@@ -104,11 +112,13 @@ func main() {
 		Methods(http.MethodGet, http.MethodOptions)
 	router.Handle("/token", oauth2.TokenHandler(tokenService, settings.Clients)).
 		Methods(http.MethodOptions, http.MethodPost)
-	router.Handle("/auth", oauth2.AuthHandler(tokenService, settingsAuthenticator, settings.Clients)).
+	router.Handle("/auth", oauth2.AuthHandler(tokenService, authenticator, settings.Clients)).
 		Methods(http.MethodGet)
-	router.Handle("/login", server.LoginHandler(settings, settingsAuthenticator, sessionStore)).
+	router.Handle("/login", server.LoginHandler(settings, authenticator, sessionStore)).
 		Methods(http.MethodGet, http.MethodPost)
 	router.Handle("/logout", server.LogoutHandler(settings, sessionStore))
+	router.Handle("/me", server.MeHandler(authenticator)).
+		Methods(http.MethodGet)
 
 	log.Printf("Listening on http://localhost:%d/", settings.Port)
 	err = http.ListenAndServe(fmt.Sprintf(":%d", settings.Port), router)

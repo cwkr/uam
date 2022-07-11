@@ -4,8 +4,8 @@ import (
 	_ "embed"
 	"github.com/cwkr/auth-server/htmlutil"
 	"github.com/cwkr/auth-server/httputil"
+	"github.com/cwkr/auth-server/store"
 	"github.com/cwkr/auth-server/stringutil"
-	"github.com/cwkr/auth-server/userstore"
 	"github.com/gorilla/sessions"
 	"html/template"
 	"log"
@@ -13,31 +13,6 @@ import (
 	"strings"
 	"time"
 )
-
-type SettingsAuthenticator struct {
-	SessionStore sessions.Store
-	*Settings
-}
-
-func (l SettingsAuthenticator) IsAuthenticated(r *http.Request) (string, userstore.User, bool) {
-	var session, _ = l.SessionStore.Get(r, l.SessionID)
-
-	var usr, uid, exp = session.Values["usr"], session.Values["uid"], session.Values["exp"]
-
-	if usr != nil && uid != nil && exp != nil && exp.(int64) > time.Now().Unix() {
-		return uid.(string), usr.(userstore.User), true
-	}
-
-	return "", userstore.User{}, false
-}
-
-func (l SettingsAuthenticator) AuthenticationTime(r *http.Request) (time.Time, time.Time) {
-	var session, _ = l.SessionStore.Get(r, l.SessionID)
-	if iat, exp := session.Values["iat"], session.Values["exp"]; iat != nil && exp != nil {
-		return time.Unix(iat.(int64), 0), time.Unix(exp.(int64), 0)
-	}
-	return time.Time{}, time.Time{}
-}
 
 const (
 	FieldUserID        = "user_id"
@@ -49,7 +24,7 @@ var loginTpl string
 
 type loginHandler struct {
 	settings      *Settings
-	authenticator userstore.Authenticator
+	authenticator store.Authenticator
 	sessionStore  sessions.Store
 }
 
@@ -70,13 +45,13 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if user, authenticated := j.authenticator.Authenticate(userID, password); authenticated {
 				session.Values["uid"] = userID
 				session.Values["usr"] = user
-				var now = time.Now().Unix()
-				session.Values["iat"] = now
-				session.Values["exp"] = now + int64(j.settings.SessionLifetime)
+				var now = time.Now()
+				session.Values["sct"] = now
 				if err := session.Save(r, w); err != nil {
 					htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
+				log.Printf("userID = %s, user = %#v", userID, user)
 				httputil.RedirectQuery(w, r, strings.TrimRight(j.settings.Issuer, "/")+"/auth", r.URL.Query())
 				return
 			} else {
@@ -101,7 +76,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func LoginHandler(settings *Settings, authenticator userstore.Authenticator, sessionStore sessions.Store) http.Handler {
+func LoginHandler(settings *Settings, authenticator store.Authenticator, sessionStore sessions.Store) http.Handler {
 	return &loginHandler{
 		settings:      settings,
 		authenticator: authenticator,

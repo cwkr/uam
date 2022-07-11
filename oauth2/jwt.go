@@ -4,8 +4,8 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"github.com/cwkr/auth-server/store"
 	"github.com/cwkr/auth-server/stringutil"
-	"github.com/cwkr/auth-server/userstore"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"log"
@@ -33,7 +33,7 @@ const (
 type Claims map[string]interface{}
 
 type User struct {
-	userstore.User
+	store.User
 	UserID string
 }
 
@@ -164,8 +164,8 @@ func (t tokenService) VerifyToken(rawToken string) (User, bool) {
 	}
 	var claims = jwt.Claims{}
 	var userData = struct {
-		UserID string         `json:"user_id"`
-		User   userstore.User `json:"user"`
+		UserID string     `json:"user_id"`
+		User   store.User `json:"user"`
 	}{}
 	if err := token.Claims(&t.privateKey.PublicKey, &claims, &userData); err != nil {
 		log.Printf("!!! %s\n", err)

@@ -1,0 +1,98 @@
+package store
+
+import (
+	"database/sql"
+	"github.com/gorilla/sessions"
+	_ "github.com/lib/pq"
+	"golang.org/x/crypto/bcrypt"
+	"log"
+)
+
+type postgresAuthenticator struct {
+	embeddedAuthenticator
+	dbconn       *sql.DB
+	userQuery    string
+	groupsQuery  string
+	detailsQuery string
+}
+
+func NewPostgresAuthenticator(sessionStore sessions.Store, users map[string]EmbeddedUser, sessionID string, sessionLifetime int, uri, userQuery, groupsQuery, detailsQuery string) (Authenticator, error) {
+	dbconn, err := sql.Open("postgres", uri)
+	if err != nil {
+		return nil, err
+	}
+	return &postgresAuthenticator{
+		embeddedAuthenticator: embeddedAuthenticator{
+			sessionStore:    sessionStore,
+			users:           users,
+			sessionID:       sessionID,
+			sessionLifetime: sessionLifetime,
+		},
+		dbconn:       dbconn,
+		userQuery:    userQuery,
+		groupsQuery:  groupsQuery,
+		detailsQuery: detailsQuery,
+	}, nil
+}
+
+func (p postgresAuthenticator) Authenticate(userID, password string) (User, bool) {
+	var user, foundUser = p.embeddedAuthenticator.Authenticate(userID, password)
+	if foundUser {
+		return user, true
+	}
+
+	// SELECT password_hash FROM users WHERE lower(id) = lower($1)
+	log.Printf("SQL: %s; $1 = %s", p.userQuery, userID)
+	var row = p.dbconn.QueryRow(p.userQuery, userID)
+	var passwordHash string
+	if err := row.Scan(&passwordHash); err == nil {
+		if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)); err != nil {
+			log.Printf("!!! Authenticate failed: %v", err)
+		} else {
+			var groups []string
+			log.Printf("SQL: %s; $1 = %s", p.groupsQuery, userID)
+			// SELECT id FROM groups WHERE lower(user_id) = lower($1)
+			if rows, err := p.dbconn.Query(p.groupsQuery, userID); err == nil {
+
+				for rows.Next() {
+					var group string
+					if err := rows.Scan(&group); err == nil {
+						groups = append(groups, group)
+					}
+				}
+
+			} else {
+				log.Printf("!!! Query for groups failed: %v", err)
+			}
+
+			var details = make(map[string]interface{})
+			log.Printf("SQL: %s; $1 = %s", p.detailsQuery, userID)
+			// SELECT first_name, last_name FROM users WHERE lower(id) = lower($1)
+			if rows, err := p.dbconn.Query(p.detailsQuery, userID); err == nil {
+				var cols, _ = rows.Columns()
+				if rows.Next() {
+					var columns = make([]interface{}, len(cols))
+					var columnPointers = make([]interface{}, len(cols))
+					for i, _ := range columns {
+						columnPointers[i] = &columns[i]
+					}
+					if err := rows.Scan(columnPointers...); err == nil {
+
+						for i, colName := range cols {
+							val := columnPointers[i].(*interface{})
+							details[colName] = *val
+						}
+
+					}
+				}
+			} else {
+				log.Printf("!!! Query for details failed: %v", err)
+			}
+			return User{Groups: groups, Details: details}, true
+		}
+	} else {
+		log.Printf("!!! Query for user failed: %v", err)
+	}
+
+	return User{}, false
+}

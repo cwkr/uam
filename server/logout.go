@@ -29,8 +29,8 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if redirectURIPattern := l.settings.Clients[clientID]; redirectURIPattern != "" {
-			if !regexp.MustCompile(redirectURIPattern).MatchString(redirectURI) {
+		if client, found := l.settings.Clients[clientID]; found && client.RedirectURIPattern != "" {
+			if !regexp.MustCompile(client.RedirectURIPattern).MatchString(redirectURI) {
 				htmlutil.Error(w, "Redirect URI does not match Clients redirect URI patterns", http.StatusBadRequest)
 				return
 			}

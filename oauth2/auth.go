@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"github.com/cwkr/auth-server/htmlutil"
 	"github.com/cwkr/auth-server/httputil"
+	"github.com/cwkr/auth-server/store"
 	"github.com/cwkr/auth-server/stringutil"
-	"github.com/cwkr/auth-server/userstore"
 	"log"
 	"net/http"
 	"net/url"
@@ -15,7 +15,7 @@ import (
 
 type authHandler struct {
 	tokenService  TokenService
-	authenticator userstore.Authenticator
+	authenticator store.Authenticator
 	clients       Clients
 }
 
@@ -47,8 +47,8 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if redirectURIPattern := a.clients[clientID]; redirectURIPattern != "" {
-		if !regexp.MustCompile(redirectURIPattern).MatchString(redirectURI) {
+	if client, found := a.clients[clientID]; found && client.RedirectURIPattern != "" {
+		if !regexp.MustCompile(client.RedirectURIPattern).MatchString(redirectURI) {
 			htmlutil.Error(w, ErrorRedirectURIMismatch, http.StatusBadRequest)
 			return
 		}
@@ -85,7 +85,7 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func AuthHandler(tokenService TokenService, authenticator userstore.Authenticator, clients Clients) http.Handler {
+func AuthHandler(tokenService TokenService, authenticator store.Authenticator, clients Clients) http.Handler {
 	return &authHandler{
 		tokenService:  tokenService,
 		authenticator: authenticator,

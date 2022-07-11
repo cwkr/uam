@@ -1,4 +1,4 @@
-package userstore
+package store
 
 import (
 	"net/http"

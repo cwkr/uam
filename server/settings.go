@@ -7,35 +7,32 @@ import (
 	"errors"
 	"github.com/cwkr/auth-server/fileutil"
 	"github.com/cwkr/auth-server/oauth2"
+	"github.com/cwkr/auth-server/store"
 	"github.com/cwkr/auth-server/stringutil"
-	"github.com/cwkr/auth-server/userstore"
-	"golang.org/x/crypto/bcrypt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-type User struct {
-	userstore.User
-	PasswordHash string `json:"password_hash"`
-}
-
 type Settings struct {
-	Issuer               string          `json:"issuer"`
-	Port                 int             `json:"port"`
-	Title                string          `json:"title"`
-	Users                map[string]User `json:"users"`
-	Key                  string          `json:"key"`
-	AdditionalKeys       []string        `json:"additional_keys"`
-	Clients              oauth2.Clients  `json:"clients"`
-	Claims               oauth2.Claims   `json:"claims"`
-	Scopes               []string        `json:"scopes"`
-	AccessTokenLifetime  int             `json:"access_token_lifetime"`
-	RefreshTokenLifetime int             `json:"refresh_token_lifetime"`
-	SessionSecret        string          `json:"session_secret"`
-	SessionID            string          `json:"session_id"`
-	SessionLifetime      int             `json:"session_lifetime"`
+	Issuer               string                        `json:"issuer"`
+	Port                 int                           `json:"port"`
+	Title                string                        `json:"title"`
+	Users                map[string]store.EmbeddedUser `json:"users"`
+	Key                  string                        `json:"key"`
+	AdditionalKeys       []string                      `json:"additional_keys"`
+	Clients              oauth2.Clients                `json:"clients"`
+	Claims               oauth2.Claims                 `json:"claims"`
+	Scopes               []string                      `json:"scopes"`
+	AccessTokenLifetime  int                           `json:"access_token_lifetime"`
+	RefreshTokenLifetime int                           `json:"refresh_token_lifetime"`
+	SessionSecret        string                        `json:"session_secret"`
+	SessionID            string                        `json:"session_id"`
+	SessionLifetime      int                           `json:"session_lifetime"`
+	StoreURI             string                        `json:"store_uri,omitempty"`
+	UserQuery            string                        `json:"user_query"`
+	GroupsQuery          string                        `json:"groups_query"`
+	DetailsQuery         string                        `json:"details_query"`
 	rsaSigningKey        *rsa.PrivateKey
 	rsaSigningKeyID      string
 	rsaAdditionalKeys    map[string]*rsa.PublicKey
@@ -46,27 +43,30 @@ func NewDefaultSettings() *Settings {
 		Issuer: "http://localhost:1337/",
 		Port:   1337,
 		Title:  "Auth Server",
-		Users: map[string]User{
+		Users: map[string]store.EmbeddedUser{
 			"user": {
-				User: userstore.User{
+				User: store.User{
 					Details: map[string]interface{}{
 						"first_name": "First Name",
 						"last_name":  "Last Name",
+						"email":      "email@example.org",
 					},
-					Email: "email@example.org",
+					Groups: []string{"users"},
 				},
 				PasswordHash: "$2a$12$yos0Nv/lfhjKjJ7CSmkCteSJRmzkirYwGFlBqeY4ss3o3nFSb5WDy",
 			},
 		},
 		Clients: oauth2.Clients{
-			"app": "https?:\\/\\/localhost(:\\d+)?\\/",
+			"app": oauth2.Client{
+				RedirectURIPattern: "https?:\\/\\/localhost(:\\d+)?\\/",
+			},
 		},
 		AccessTokenLifetime:  3_600,
 		RefreshTokenLifetime: 28_800,
 		Claims: oauth2.Claims{
 			"givenName": "{{ .Details.first_name }}",
 			"sn":        "{{ .Details.last_name }}",
-			"email":     "{{ .Email }}",
+			"email":     "{{ .Details.email }}",
 			"groups":    "{{ .Groups | join ',' }}",
 			"user_id":   "{{ .UserID | upper }}",
 		},
@@ -140,18 +140,4 @@ func (s Settings) AllKeys() map[string]*rsa.PublicKey {
 		allKeys[kid] = publicKey
 	}
 	return allKeys
-}
-
-func (s Settings) Authenticate(userID, password string) (userstore.User, bool) {
-	var user, foundUser = s.Users[userID]
-
-	if foundUser {
-		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-			log.Printf("Authenticate failed: %v", err)
-		} else {
-			return user.User, true
-		}
-	}
-
-	return userstore.User{}, false
 }
