@@ -7,21 +7,22 @@ import (
 	"encoding/pem"
 	"fmt"
 	"github.com/cwkr/auth-server/htmlutil"
-	"github.com/gorilla/sessions"
+	"github.com/cwkr/auth-server/userstore"
 	"html/template"
 	"log"
 	"math/rand"
 	"net/http"
 	"strings"
+	"time"
 )
 
 //go:embed templates/index.gohtml
 var indexTpl string
 
 type indexHandler struct {
-	settings     *Settings
-	sessionStore sessions.Store
-	publicKey    *rsa.PublicKey
+	settings      *Settings
+	authenticator userstore.Authenticator
+	publicKey     *rsa.PublicKey
 }
 
 func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -35,26 +36,37 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Bytes: pubASN1,
 	})
 
-	var session, _ = i.sessionStore.Get(r, i.settings.SessionID)
+	var userID, user, active = i.authenticator.IsAuthenticated(r)
 
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	var loginStart, loginExpiry string
+	if active {
+
+	}
+	if iat, exp := i.authenticator.AuthenticationTime(r); active {
+		loginStart = iat.Format(time.RFC3339)
+		loginExpiry = exp.Format(time.RFC3339)
+	}
 	var err = t.ExecuteTemplate(w, "index", map[string]interface{}{
-		"issuer":     strings.TrimRight(i.settings.Issuer, "/"),
-		"public_key": string(pubBytes),
-		"state":      fmt.Sprint(rand.Int()),
-		"clients":    i.settings.Clients,
-		"title":      i.settings.Title,
-		"user_id":    session.Values["user_id"],
-		"user":       session.Values["user"],
+		"issuer":       strings.TrimRight(i.settings.Issuer, "/"),
+		"public_key":   string(pubBytes),
+		"state":        fmt.Sprint(rand.Int()),
+		"clients":      i.settings.Clients,
+		"title":        i.settings.Title,
+		"user_id":      userID,
+		"user":         user,
+		"login_start":  loginStart,
+		"login_expiry": loginExpiry,
+		"login_active": active,
 	})
 	if err != nil {
 		htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func IndexHandler(settings *Settings, sessionStore sessions.Store) http.Handler {
+func IndexHandler(settings *Settings, authenticator userstore.Authenticator) http.Handler {
 	return &indexHandler{
-		settings:     settings,
-		sessionStore: sessionStore,
+		settings:      settings,
+		authenticator: authenticator,
 	}
 }

@@ -42,21 +42,27 @@ type TokenService interface {
 	GenerateAuthCode(user User, clientID string) (string, error)
 	GenerateRefreshToken(user User, clientID string) (string, error)
 	VerifyToken(rawToken string) (user User, valid bool)
-	AccessTokenLifetime() int
+	AccessTokenLifetime() int64
+	RefreshTokenLifetime() int64
 	Issuer() string
 }
 
 type tokenService struct {
-	privateKey          *rsa.PrivateKey
-	signer              jose.Signer
-	issuer              string
-	scopes              []string
-	accessTokenLifetime int
-	customClaims        Claims
+	privateKey           *rsa.PrivateKey
+	signer               jose.Signer
+	issuer               string
+	scopes               []string
+	accessTokenLifetime  int64
+	refreshTokenLifetime int64
+	customClaims         Claims
 }
 
-func (t tokenService) AccessTokenLifetime() int {
+func (t tokenService) AccessTokenLifetime() int64 {
 	return t.accessTokenLifetime
+}
+
+func (t tokenService) RefreshTokenLifetime() int64 {
+	return t.refreshTokenLifetime
 }
 
 func (t tokenService) Issuer() string {
@@ -64,7 +70,7 @@ func (t tokenService) Issuer() string {
 }
 
 func (t tokenService) GenerateAccessToken(user User) (string, error) {
-	var now = time.Now().UTC().Unix()
+	var now = time.Now().Unix()
 
 	var claims = Claims{
 		ClaimIssuer:         t.issuer,
@@ -72,7 +78,7 @@ func (t tokenService) GenerateAccessToken(user User) (string, error) {
 		ClaimPrincipal:      user.UserID,
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
-		ClaimExpirationTime: now + int64(t.accessTokenLifetime),
+		ClaimExpirationTime: now + t.accessTokenLifetime,
 		ClaimScope:          strings.Join(t.scopes, " "),
 	}
 
@@ -115,7 +121,7 @@ func (t tokenService) GenerateAccessToken(user User) (string, error) {
 }
 
 func (t tokenService) GenerateAuthCode(user User, clientID string) (string, error) {
-	var now = time.Now().UTC().Unix()
+	var now = time.Now().Unix()
 
 	var claims = Claims{
 		ClaimIssuer:         t.issuer,
@@ -133,7 +139,7 @@ func (t tokenService) GenerateAuthCode(user User, clientID string) (string, erro
 }
 
 func (t tokenService) GenerateRefreshToken(user User, clientID string) (string, error) {
-	var now = time.Now().UTC().Unix()
+	var now = time.Now().Unix()
 
 	var claims = Claims{
 		ClaimIssuer:         t.issuer,
@@ -143,7 +149,7 @@ func (t tokenService) GenerateRefreshToken(user User, clientID string) (string, 
 		"user":              user.User,
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
-		ClaimExpirationTime: now + int64(t.accessTokenLifetime*10),
+		ClaimExpirationTime: now + t.refreshTokenLifetime,
 		ClaimScope:          strings.Join(t.scopes, " "),
 	}
 
@@ -177,18 +183,19 @@ func (t tokenService) VerifyToken(rawToken string) (User, bool) {
 	}
 }
 
-func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer string, scopes []string, accessTokenLifetime int, customClaims Claims) (TokenService, error) {
+func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer string, scopes []string, accessTokenLifetime, refreshTokenLifetime int64, customClaims Claims) (TokenService, error) {
 	var signer, err = jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}, (&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", keyID))
 	if err != nil {
 		return nil, err
 	}
 	return &tokenService{
-		privateKey:          privateKey,
-		signer:              signer,
-		issuer:              issuer,
-		scopes:              scopes,
-		accessTokenLifetime: accessTokenLifetime,
-		customClaims:        customClaims,
+		privateKey:           privateKey,
+		signer:               signer,
+		issuer:               issuer,
+		scopes:               scopes,
+		accessTokenLifetime:  accessTokenLifetime,
+		refreshTokenLifetime: refreshTokenLifetime,
+		customClaims:         customClaims,
 	}, nil
 }
 

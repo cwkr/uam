@@ -6,7 +6,6 @@ import (
 	"github.com/cwkr/auth-server/httputil"
 	"github.com/cwkr/auth-server/stringutil"
 	"github.com/cwkr/auth-server/userstore"
-	"github.com/gorilla/sessions"
 	"log"
 	"net/http"
 	"net/url"
@@ -17,15 +16,11 @@ import (
 type authHandler struct {
 	tokenService  TokenService
 	authenticator userstore.Authenticator
-	sessionStore  sessions.Store
-	sessionID     string
 	clients       Clients
 }
 
 func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
-
-	var session, _ = a.sessionStore.Get(r, a.sessionID)
 
 	var (
 		responseType = strings.ToLower(strings.TrimSpace(r.FormValue("response_type")))
@@ -35,8 +30,8 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		user         User
 	)
 
-	if usr, uid := session.Values["user"], session.Values["user_id"]; usr != nil && uid != nil {
-		user = User{UserID: uid.(string), User: usr.(userstore.User)}
+	if uid, usr, active := a.authenticator.IsAuthenticated(r); active {
+		user = User{UserID: uid, User: usr}
 	} else {
 		httputil.RedirectQuery(w, r, strings.TrimRight(a.tokenService.Issuer(), "/")+"/login", r.URL.Query())
 		return
@@ -90,12 +85,10 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func AuthHandler(tokenService TokenService, authenticator userstore.Authenticator, clients Clients, sessionStore sessions.Store, sessionID string) http.Handler {
+func AuthHandler(tokenService TokenService, authenticator userstore.Authenticator, clients Clients) http.Handler {
 	return &authHandler{
 		tokenService:  tokenService,
 		authenticator: authenticator,
 		clients:       clients,
-		sessionStore:  sessionStore,
-		sessionID:     sessionID,
 	}
 }

@@ -22,21 +22,23 @@ type User struct {
 }
 
 type Settings struct {
-	Issuer              string          `json:"issuer"`
-	Port                int             `json:"port"`
-	Title               string          `json:"title"`
-	Users               map[string]User `json:"users"`
-	Key                 string          `json:"key"`
-	AdditionalKeys      []string        `json:"additional_keys"`
-	Clients             oauth2.Clients  `json:"clients"`
-	Claims              oauth2.Claims   `json:"claims"`
-	Scopes              []string        `json:"scopes"`
-	AccessTokenLifetime int             `json:"access_token_lifetime"`
-	SessionSecret       string          `json:"session_secret"`
-	SessionID           string          `json:"session_id"`
-	rsaSigningKey       *rsa.PrivateKey
-	rsaSigningKeyID     string
-	rsaAdditionalKeys   map[string]*rsa.PublicKey
+	Issuer               string          `json:"issuer"`
+	Port                 int             `json:"port"`
+	Title                string          `json:"title"`
+	Users                map[string]User `json:"users"`
+	Key                  string          `json:"key"`
+	AdditionalKeys       []string        `json:"additional_keys"`
+	Clients              oauth2.Clients  `json:"clients"`
+	Claims               oauth2.Claims   `json:"claims"`
+	Scopes               []string        `json:"scopes"`
+	AccessTokenLifetime  int             `json:"access_token_lifetime"`
+	RefreshTokenLifetime int             `json:"refresh_token_lifetime"`
+	SessionSecret        string          `json:"session_secret"`
+	SessionID            string          `json:"session_id"`
+	SessionLifetime      int             `json:"session_lifetime"`
+	rsaSigningKey        *rsa.PrivateKey
+	rsaSigningKeyID      string
+	rsaAdditionalKeys    map[string]*rsa.PublicKey
 }
 
 func NewDefaultSettings() *Settings {
@@ -47,10 +49,11 @@ func NewDefaultSettings() *Settings {
 		Users: map[string]User{
 			"user": {
 				User: userstore.User{
-					FirstName:  "First Name",
-					LastName:   "Last Name",
-					Email:      "email@example.org",
-					Department: "Example",
+					Details: map[string]interface{}{
+						"first_name": "First Name",
+						"last_name":  "Last Name",
+					},
+					Email: "email@example.org",
 				},
 				PasswordHash: "$2a$12$yos0Nv/lfhjKjJ7CSmkCteSJRmzkirYwGFlBqeY4ss3o3nFSb5WDy",
 			},
@@ -58,17 +61,19 @@ func NewDefaultSettings() *Settings {
 		Clients: oauth2.Clients{
 			"app": "https?:\\/\\/localhost(:\\d+)?\\/",
 		},
-		AccessTokenLifetime: 3600,
+		AccessTokenLifetime:  3_600,
+		RefreshTokenLifetime: 28_800,
 		Claims: oauth2.Claims{
-			"givenName": "{{ .User.FirstName }}",
-			"sn":        "{{ .User.LastName }}",
-			"email":     "{{ .User.Email }}",
+			"givenName": "{{ .Details.first_name }}",
+			"sn":        "{{ .Details.last_name }}",
+			"email":     "{{ .Email }}",
 			"groups":    "{{ .Groups | join ',' }}",
-			"username":  "{{ .UserID | upper }}",
+			"user_id":   "{{ .UserID | upper }}",
 		},
-		Scopes:        []string{"profile", "email", "offline_access"},
-		SessionID:     "ASESSION",
-		SessionSecret: stringutil.RandomBytesString(32),
+		Scopes:          []string{"profile", "email", "offline_access"},
+		SessionID:       "ASESSION",
+		SessionSecret:   stringutil.RandomBytesString(32),
+		SessionLifetime: 28_800,
 	}
 }
 

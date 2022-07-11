@@ -19,8 +19,9 @@
 </head>
 <body>
 <h1>{{ .title }}</h1>
-{{ if and .user_id .user }}
+{{ if and .login_active }}
 <h2>Current user: {{ .user_id }}</h2>
+<p>Session started <strong>{{ .login_start }}</strong> will expire <strong>{{ .login_expiry }}</strong></p>
 <form method="get" action="{{ .issuer }}/logout">
     <input type="hidden" name="state" value="{{ .state }}">
     <button type="submit">Logout</button>
