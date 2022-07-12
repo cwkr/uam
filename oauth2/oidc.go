@@ -1,0 +1,65 @@
+package oauth2
+
+import (
+	"encoding/json"
+	"github.com/cwkr/auth-server/htmlutil"
+	"log"
+	"net/http"
+	"strings"
+)
+
+type DiscoveryDocument struct {
+	Issuer                                     string   `json:"issuer"`
+	AuthorizationEndpoint                      string   `json:"authorization_endpoint"`
+	JwksURI                                    string   `json:"jwks_uri"`
+	ResponseTypesSupported                     []string `json:"response_types_supported"`
+	GrantTypesSupported                        []string `json:"grant_types_supported"`
+	TokenEndpoint                              string   `json:"token_endpoint"`
+	ScopesSupported                            []string `json:"scopes_supported"`
+	TokenEndpointAuthMethodsSupported          []string `json:"token_endpoint_auth_methods_supported"`
+	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported"`
+}
+
+type discoveryDocumentHandler struct {
+	issuer string
+	scopes []string
+}
+
+func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s %s", r.Method, r.URL)
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "X-Requested-With")
+
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Allow", "GET, OPTIONS")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	var baseURL = strings.TrimRight(d.issuer, "/")
+	if bytes, err := json.Marshal(DiscoveryDocument{
+		Issuer:                            d.issuer,
+		AuthorizationEndpoint:             baseURL + "/auth",
+		JwksURI:                           baseURL + "/jwks",
+		ResponseTypesSupported:            []string{"code", "token"},
+		GrantTypesSupported:               []string{"authorization_code", "implicit", "refresh_token"},
+		TokenEndpoint:                     baseURL + "/token",
+		ScopesSupported:                   d.scopes,
+		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic", "client_secret_post"},
+		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256"},
+	}); err != nil {
+		htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(bytes)
+	}
+}
+
+func DiscoveryDocumentHandler(issuer string, scopes []string) http.Handler {
+	return &discoveryDocumentHandler{
+		issuer: issuer,
+		scopes: scopes,
+	}
+}

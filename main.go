@@ -117,6 +117,8 @@ func main() {
 	router.Handle("/login", server.LoginHandler(settings, authenticator, sessionStore)).
 		Methods(http.MethodGet, http.MethodPost)
 	router.Handle("/logout", server.LogoutHandler(settings, sessionStore))
+	router.Handle("/.well-known/openid-configuration", oauth2.DiscoveryDocumentHandler(settings.Issuer, settings.Scopes)).
+		Methods(http.MethodGet, http.MethodOptions)
 	router.Handle("/me", server.MeHandler(authenticator)).
 		Methods(http.MethodGet)
 
