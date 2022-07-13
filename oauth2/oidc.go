@@ -18,11 +18,13 @@ type DiscoveryDocument struct {
 	ScopesSupported                            []string `json:"scopes_supported"`
 	TokenEndpointAuthMethodsSupported          []string `json:"token_endpoint_auth_methods_supported"`
 	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported"`
+	CodeChallengeMethodsSupported              []string `json:"code_challenge_methods_supported,omitempty"`
 }
 
 type discoveryDocumentHandler struct {
-	issuer string
-	scopes []string
+	issuer      string
+	scopes      []string
+	disablePKCE bool
 }
 
 func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +41,7 @@ func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	}
 
 	var baseURL = strings.TrimRight(d.issuer, "/")
-	if bytes, err := json.Marshal(DiscoveryDocument{
+	var discoveryDocument = DiscoveryDocument{
 		Issuer:                            d.issuer,
 		AuthorizationEndpoint:             baseURL + "/auth",
 		JwksURI:                           baseURL + "/jwks",
@@ -49,7 +51,11 @@ func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		ScopesSupported:                   d.scopes,
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic", "client_secret_post"},
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256"},
-	}); err != nil {
+	}
+	if !d.disablePKCE {
+		discoveryDocument.CodeChallengeMethodsSupported = []string{"S256"}
+	}
+	if bytes, err := json.Marshal(discoveryDocument); err != nil {
 		htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 	} else {
 		w.Header().Set("Content-Type", "application/json")
@@ -57,9 +63,10 @@ func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func DiscoveryDocumentHandler(issuer string, scopes []string) http.Handler {
+func DiscoveryDocumentHandler(issuer string, scopes []string, disablePKCE bool) http.Handler {
 	return &discoveryDocumentHandler{
-		issuer: issuer,
-		scopes: scopes,
+		issuer:      issuer,
+		scopes:      scopes,
+		disablePKCE: disablePKCE,
 	}
 }

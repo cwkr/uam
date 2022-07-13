@@ -3,8 +3,6 @@ package stringutil
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"math"
-	"math/big"
 )
 
 func IsAnyEmpty(strings ...string) bool {
@@ -17,14 +15,11 @@ func IsAnyEmpty(strings ...string) bool {
 }
 
 func RandomBytesString(max int) string {
-	var bytes []byte = make([]byte, 0, max)
-	for i := 0; i < max; i++ {
-		nBig, err := rand.Int(rand.Reader, big.NewInt(math.MaxUint8))
-		if err != nil {
-			panic(err)
-		}
-		bytes = append(bytes, byte(nBig.Int64()))
+	var bytes = make([]byte, max)
+
+	if _, err := rand.Read(bytes); err != nil {
+		panic(err)
 	}
 
-	return base64.URLEncoding.EncodeToString(bytes)
+	return base64.RawURLEncoding.EncodeToString(bytes)
 }

@@ -9,38 +9,60 @@
             const state = document.getElementById("state").value;
             const clientId = document.getElementById("client_id").value;
             const responseType = document.getElementById("response_type").value;
+            {{- if .pkce }}
+            const codeVerifier = document.getElementById("code_verifier").value;
+            {{- end }}
             sessionStorage.setItem("client_id", clientId);
             sessionStorage.setItem("response_type", responseType);
             if (responseType === "code") {
-                sessionStorage.setItem(state, clientId);
+                sessionStorage.setItem('client_id'+state, clientId);
+                {{- if .pkce }}
+                sessionStorage.setItem('code_verifier'+state, codeVerifier);
+                {{- end }}
             }
         }
+        {{- if .pkce }}
+        function togglePkceParams(responseType) {
+            if (responseType === "code") {
+                document.getElementById("code_challenge").disabled = false;
+                document.getElementById("code_challenge_method").disabled = false;
+            } else if (responseType === "token") {
+                document.getElementById("code_challenge").disabled = true;
+                document.getElementById("code_challenge_method").disabled = true;
+            }
+        }
+        {{- end }}
     </script>
 </head>
 <body>
 <h1>{{ .title }}</h1>
-{{ if and .login_active }}
-<h2>Current user: <a href="{{ .issuer }}/me">{{ .user_id }}</a></h2>
-<p>Session started <strong>{{ .login_start }}</strong> will expire <strong>{{ .login_expiry }}</strong></p>
-<form method="get" action="{{ .issuer }}/logout">
-    <input type="hidden" name="state" value="{{ .state }}">
-    <button type="submit">Logout</button>
-</form>
-{{ end }}
+{{- if .login_active }}
+    <h2>Current user: <a href="{{ .issuer }}/me">{{ .user_id }}</a></h2>
+    <p>Session started <strong>{{ .login_start }}</strong> will expire <strong>{{ .login_expiry }}</strong></p>
+    <form method="get" action="{{ .issuer }}/logout">
+        <input type="hidden" name="state" value="{{ .state }}">
+        <button type="submit">Logout</button>
+    </form>
+{{- end }}
 <h2>OAuth2</h2>
 <form method="get" action="{{ .issuer }}/auth" onsubmit="remember()">
     <input type="hidden" name="redirect_uri" value="{{ .issuer }}/">
     <input type="hidden" id="state" name="state" value="{{ .state }}">
+{{- if .pkce }}
+    <input type="hidden" id="code_verifier" name="code_verifier" value="{{ .code_verifier }}" disabled>
+    <input type="hidden" id="code_challenge" name="code_challenge" value="{{ .code_challenge }}" disabled>
+    <input type="hidden" id="code_challenge_method" name="code_challenge_method" value="S256" disabled>
+{{- end }}
     <label for="response_type">Flow</label>
-    <select id="response_type" name="response_type">
+    <select id="response_type" name="response_type"{{ if .pkce }} onchange="togglePkceParams(this.value);"{{ end }}>
         <option value="token">Implicit</option>
         <option value="code">Authorization Code</option>
     </select>
     <label for="client_id">Client</label>
     <select id="client_id" name="client_id">
-        {{range .clients.ClientsMatchingRedirectURI (printf "%s/" .issuer)}}
+        {{- range .clients.ClientsMatchingRedirectURI (printf "%s/" .issuer) }}
             <option value="{{ . }}">{{ . }}</option>
-        {{end}}
+        {{- end }}
     </select>
     <button type="submit">Get token</button>
 </form>
@@ -70,6 +92,9 @@
     const rememberedResponseType = sessionStorage.getItem("response_type");
     if (rememberedResponseType) {
         document.getElementById("response_type").value = rememberedResponseType;
+        {{- if .pkce }}
+        togglePkceParams(rememberedResponseType)
+        {{- end }}
     }
 
     const rememberedClientId = sessionStorage.getItem("client_id");
@@ -90,13 +115,19 @@
         const postParams = new URLSearchParams({
             "grant_type": "authorization_code",
             "code": urlParams.get("code"),
-            "client_id": sessionStorage.getItem(urlParams.get("state"))
+            "client_id": sessionStorage.getItem('client_id'+urlParams.get("state")),
+            {{- if .pkce }}
+            "code_verifier": sessionStorage.getItem('code_verifier'+urlParams.get("state"))
+            {{- end }}
         });
         fetch("token", {method: "POST", body: postParams})
             .then(res => res.json())
             .then(data => {
                 document.getElementById("token_output").textContent = data.access_token;
-                sessionStorage.removeItem(urlParams.get("state"));
+                sessionStorage.removeItem('client_id'+urlParams.get("state"));
+                {{- if .pkce }}
+                sessionStorage.removeItem('code_verifier'+urlParams.get("state"));
+                {{- end }}
             });
     }
 </script>

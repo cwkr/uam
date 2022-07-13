@@ -29,6 +29,7 @@ type Settings struct {
 	SessionSecret        string                        `json:"session_secret"`
 	SessionID            string                        `json:"session_id"`
 	SessionLifetime      int                           `json:"session_lifetime"`
+	DisablePKCE          bool                          `json:"disable_pkce"`
 	StoreURI             string                        `json:"store_uri,omitempty"`
 	UserQuery            string                        `json:"user_query"`
 	GroupsQuery          string                        `json:"groups_query"`
@@ -77,7 +78,7 @@ func NewDefaultSettings() *Settings {
 	}
 }
 
-func (s *Settings) LoadKeys(initConfig bool) error {
+func (s *Settings) LoadKeys(genNew bool) error {
 	var err error
 	s.rsaSigningKeyID = "sigkey"
 	if strings.HasPrefix(s.Key, "-----BEGIN RSA PRIVATE KEY-----") {
@@ -87,7 +88,7 @@ func (s *Settings) LoadKeys(initConfig bool) error {
 			return err
 		}
 	} else if s.Key == "" || !fileutil.FileExists(s.Key) {
-		if !initConfig && s.Key != "" {
+		if !genNew && s.Key != "" {
 			return errors.New("missing key")
 		}
 		var keyBytes []byte

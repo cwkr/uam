@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
 	"flag"
@@ -27,23 +26,16 @@ var (
 func main() {
 	var err error
 	var configFilename string
-	var showHelp bool
-	var initConfig bool
+	var saveConfig bool
 
 	gob.RegisterName("user", store.User{})
 	gob.RegisterName("time", time.Time{})
 
 	log.SetOutput(os.Stdout)
 
-	flag.StringVar(&configFilename, "config", "auth-server.json", "config file")
-	flag.BoolVar(&showHelp, "help", false, "print help and exit")
-	flag.BoolVar(&initConfig, "init", false, "init config and exit")
+	flag.StringVar(&configFilename, "config", "auth-server.json", "config file name")
+	flag.BoolVar(&saveConfig, "save", false, "save config and exit")
 	flag.Parse()
-
-	if showHelp {
-		flag.PrintDefaults()
-		os.Exit(0)
-	}
 
 	// Set defaults
 	settings = server.NewDefaultSettings()
@@ -56,9 +48,18 @@ func main() {
 		}
 	}
 
-	err = settings.LoadKeys(initConfig)
+	err = settings.LoadKeys(saveConfig)
 	if err != nil {
 		panic(err)
+	}
+
+	if saveConfig {
+		log.Printf("Saving config file %s", configFilename)
+		configJson, _ := json.MarshalIndent(settings, "", "  ")
+		if err := os.WriteFile(configFilename, configJson, 0644); err != nil {
+			panic(err)
+		}
+		os.Exit(0)
 	}
 
 	tokenService, err = oauth2.NewTokenService(
@@ -74,20 +75,7 @@ func main() {
 		panic(err)
 	}
 
-	if initConfig {
-		log.Printf("Initializing config file %s", configFilename)
-		configJson, _ := json.MarshalIndent(settings, "", "  ")
-		err := os.WriteFile(configFilename, configJson, 0644)
-		if err != nil {
-			panic(err)
-		}
-		os.Exit(0)
-	}
-	sessionSecretBytes, err := base64.URLEncoding.DecodeString(settings.SessionSecret)
-	if err != nil {
-		panic(err)
-	}
-	var sessionStore = sessions.NewCookieStore(sessionSecretBytes)
+	var sessionStore = sessions.NewCookieStore([]byte(settings.SessionSecret))
 	sessionStore.Options.HttpOnly = true
 	sessionStore.Options.MaxAge = 0
 
@@ -104,20 +92,20 @@ func main() {
 	var router = mux.NewRouter()
 
 	router.NotFoundHandler = htmlutil.NotFoundHandler()
-	router.Handle("/", server.IndexHandler(settings, authenticator)).
+	router.Handle("/", server.IndexHandler(settings, authenticator, !settings.DisablePKCE)).
 		Methods(http.MethodGet)
 	router.Handle("/style", server.StyleHandler()).
 		Methods(http.MethodGet)
 	router.Handle("/jwks", oauth2.JwksHandler(settings.AllKeys())).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle("/token", oauth2.TokenHandler(tokenService, settings.Clients)).
+	router.Handle("/token", oauth2.TokenHandler(tokenService, settings.Clients, settings.DisablePKCE)).
 		Methods(http.MethodOptions, http.MethodPost)
-	router.Handle("/auth", oauth2.AuthHandler(tokenService, authenticator, settings.Clients)).
+	router.Handle("/auth", oauth2.AuthHandler(tokenService, authenticator, settings.Clients, settings.DisablePKCE)).
 		Methods(http.MethodGet)
 	router.Handle("/login", server.LoginHandler(settings, authenticator, sessionStore)).
 		Methods(http.MethodGet, http.MethodPost)
 	router.Handle("/logout", server.LogoutHandler(settings, sessionStore))
-	router.Handle("/.well-known/openid-configuration", oauth2.DiscoveryDocumentHandler(settings.Issuer, settings.Scopes)).
+	router.Handle("/.well-known/openid-configuration", oauth2.DiscoveryDocumentHandler(settings.Issuer, settings.Scopes, settings.DisablePKCE)).
 		Methods(http.MethodGet, http.MethodOptions)
 	router.Handle("/me", server.MeHandler(authenticator)).
 		Methods(http.MethodGet)

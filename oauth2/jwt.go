@@ -4,6 +4,7 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"github.com/cwkr/auth-server/oauth2/pkce"
 	"github.com/cwkr/auth-server/store"
 	"github.com/cwkr/auth-server/stringutil"
 	"github.com/go-jose/go-jose/v3"
@@ -39,9 +40,9 @@ type User struct {
 
 type TokenService interface {
 	GenerateAccessToken(user User) (string, error)
-	GenerateAuthCode(user User, clientID string) (string, error)
+	GenerateAuthCode(user User, clientID, challenge string) (string, error)
 	GenerateRefreshToken(user User, clientID string) (string, error)
-	VerifyToken(rawToken string) (user User, valid bool)
+	VerifyToken(rawToken string) (user User, challenge string, valid bool)
 	AccessTokenLifetime() int64
 	RefreshTokenLifetime() int64
 	Issuer() string
@@ -120,7 +121,7 @@ func (t tokenService) GenerateAccessToken(user User) (string, error) {
 	return jwt.Signed(t.signer).Claims(map[string]interface{}(claims)).CompactSerialize()
 }
 
-func (t tokenService) GenerateAuthCode(user User, clientID string) (string, error) {
+func (t tokenService) GenerateAuthCode(user User, clientID, challenge string) (string, error) {
 	var now = time.Now().Unix()
 
 	var claims = Claims{
@@ -133,6 +134,7 @@ func (t tokenService) GenerateAuthCode(user User, clientID string) (string, erro
 		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + 300,
 		ClaimScope:          strings.Join(t.scopes, " "),
+		"challenge":         challenge,
 	}
 
 	return jwt.Signed(t.signer).Claims(map[string]interface{}(claims)).CompactSerialize()
@@ -156,20 +158,21 @@ func (t tokenService) GenerateRefreshToken(user User, clientID string) (string, 
 	return jwt.Signed(t.signer).Claims(map[string]interface{}(claims)).CompactSerialize()
 }
 
-func (t tokenService) VerifyToken(rawToken string) (User, bool) {
+func (t tokenService) VerifyToken(rawToken string) (User, string, bool) {
 	var token, err = jwt.ParseSigned(rawToken)
 	if err != nil {
 		log.Printf("!!! %s\n", err)
-		return User{}, false
+		return User{}, "", false
 	}
 	var claims = jwt.Claims{}
 	var userData = struct {
-		UserID string     `json:"user_id"`
-		User   store.User `json:"user"`
+		UserID    string     `json:"user_id"`
+		User      store.User `json:"user"`
+		Challenge string     `json:"challenge"`
 	}{}
 	if err := token.Claims(&t.privateKey.PublicKey, &claims, &userData); err != nil {
 		log.Printf("!!! %s\n", err)
-		return User{}, false
+		return User{}, "", false
 	}
 	err = claims.ValidateWithLeeway(jwt.Expected{
 		Issuer: t.issuer,
@@ -177,9 +180,9 @@ func (t tokenService) VerifyToken(rawToken string) (User, bool) {
 	}, 0)
 	if err != nil {
 		log.Printf("!!! %s\n", err)
-		return User{}, false
+		return User{}, "", false
 	} else {
-		return User{UserID: userData.UserID, User: userData.User}, true
+		return User{UserID: userData.UserID, User: userData.User}, userData.Challenge, true
 	}
 }
 
@@ -202,6 +205,7 @@ func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer string, scopes []
 type tokenHandler struct {
 	tokenService TokenService
 	clients      Clients
+	disablePKCE  bool
 }
 
 func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -223,45 +227,53 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		clientID = strings.TrimSpace(r.PostFormValue("client_id"))
 	}
 	if _, clientExists := j.clients[clientID]; !clientExists {
-		Error(w, ErrorInvalidClient, "Wrong client id")
+		Error(w, ErrorInvalidClient, "wrong client id")
 		return
 	}
 	var (
 		grantType    = strings.ToLower(strings.TrimSpace(r.PostFormValue("grant_type")))
 		code         = strings.TrimSpace(r.PostFormValue("code"))
 		refreshToken = strings.TrimSpace(r.PostFormValue("refresh_token"))
+		codeVerifier = strings.TrimSpace(r.PostFormValue("code_verifier"))
 		accessToken  string
 	)
 
 	switch grantType {
 	case GrantTypeAuthorizationCode:
-		if stringutil.IsAnyEmpty(clientID, code) {
-			Error(w, ErrorInvalidRequest, "Code and client id is required")
+		if j.disablePKCE && stringutil.IsAnyEmpty(clientID, code) {
+			Error(w, ErrorInvalidRequest, "client_id and code parameters are required")
+			return
+		} else if !j.disablePKCE && stringutil.IsAnyEmpty(clientID, code, codeVerifier) {
+			Error(w, ErrorInvalidRequest, "client_id, code and code_verifier parameters are required")
 			return
 		}
-		var user, valid = j.tokenService.VerifyToken(code)
+		var user, challenge, valid = j.tokenService.VerifyToken(code)
+		if !j.disablePKCE && !pkce.Verify(challenge, codeVerifier) {
+			Error(w, ErrorInvalidGrant, "invalid challenge")
+			return
+		}
 		if valid {
 			accessToken, _ = j.tokenService.GenerateAccessToken(user)
 			refreshToken, _ = j.tokenService.GenerateRefreshToken(user, clientID)
 		} else {
-			Error(w, ErrorInvalidGrant, "Invalid auth code")
+			Error(w, ErrorInvalidGrant, "invalid auth code")
 			return
 		}
 	case GrantTypeRefreshToken:
 		if stringutil.IsAnyEmpty(clientID, refreshToken) {
-			Error(w, ErrorInvalidRequest, "Refresh token and client id is required")
+			Error(w, ErrorInvalidRequest, "client_id and refresh_token parameters are required")
 			return
 		}
-		var user, valid = j.tokenService.VerifyToken(refreshToken)
+		var user, _, valid = j.tokenService.VerifyToken(refreshToken)
 		if valid {
 			accessToken, _ = j.tokenService.GenerateAccessToken(user)
 			refreshToken = ""
 		} else {
-			Error(w, ErrorInvalidGrant, "Invalid auth code")
+			Error(w, ErrorInvalidGrant, "invalid refresh_token")
 			return
 		}
 	default:
-		Error(w, ErrorUnsupportedGrantType, "Only grant types 'authorization_code' and 'refresh_token' are supported")
+		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code' and 'refresh_token' are supported")
 		return
 	}
 
@@ -281,9 +293,10 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
-func TokenHandler(tokenService TokenService, clients Clients) http.Handler {
+func TokenHandler(tokenService TokenService, clients Clients, disablePKCE bool) http.Handler {
 	return &tokenHandler{
 		tokenService: tokenService,
 		clients:      clients,
+		disablePKCE:  disablePKCE,
 	}
 }

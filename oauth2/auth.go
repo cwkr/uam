@@ -17,17 +17,20 @@ type authHandler struct {
 	tokenService  TokenService
 	authenticator store.Authenticator
 	clients       Clients
+	disablePKCE   bool
 }
 
 func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
 	var (
-		responseType = strings.ToLower(strings.TrimSpace(r.FormValue("response_type")))
-		clientID     = strings.TrimSpace(r.FormValue("client_id"))
-		redirectURI  = strings.TrimSpace(r.FormValue("redirect_uri"))
-		state        = strings.TrimSpace(r.FormValue("state"))
-		user         User
+		responseType    = strings.ToLower(strings.TrimSpace(r.FormValue("response_type")))
+		clientID        = strings.TrimSpace(r.FormValue("client_id"))
+		redirectURI     = strings.TrimSpace(r.FormValue("redirect_uri"))
+		state           = strings.TrimSpace(r.FormValue("state"))
+		challenge       = strings.TrimSpace(r.FormValue("code_challenge"))
+		challengeMethod = strings.TrimSpace(r.FormValue("code_challenge_method"))
+		user            User
 	)
 
 	if uid, usr, active := a.authenticator.IsAuthenticated(r); active {
@@ -71,7 +74,11 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"state":        {state},
 		})
 	case "code":
-		var x, err = a.tokenService.GenerateAuthCode(user, clientID)
+		if !a.disablePKCE && (challenge == "" || challengeMethod != "S256") {
+			htmlutil.Error(w, "code_challenge and code_challenge_method=S256 required for PKCE", http.StatusInternalServerError)
+			return
+		}
+		var x, err = a.tokenService.GenerateAuthCode(user, clientID, challenge)
 		if err != nil {
 			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -85,10 +92,11 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func AuthHandler(tokenService TokenService, authenticator store.Authenticator, clients Clients) http.Handler {
+func AuthHandler(tokenService TokenService, authenticator store.Authenticator, clients Clients, disablePKCE bool) http.Handler {
 	return &authHandler{
 		tokenService:  tokenService,
 		authenticator: authenticator,
 		clients:       clients,
+		disablePKCE:   disablePKCE,
 	}
 }

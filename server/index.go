@@ -7,7 +7,9 @@ import (
 	"encoding/pem"
 	"fmt"
 	"github.com/cwkr/auth-server/htmlutil"
+	"github.com/cwkr/auth-server/oauth2/pkce"
 	"github.com/cwkr/auth-server/store"
+	"github.com/cwkr/auth-server/stringutil"
 	"html/template"
 	"log"
 	"math/rand"
@@ -23,6 +25,7 @@ type indexHandler struct {
 	settings      *Settings
 	authenticator store.Authenticator
 	publicKey     *rsa.PublicKey
+	usePKCE       bool
 }
 
 func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -40,33 +43,35 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
 	var loginStart, loginExpiry string
-	if active {
-
-	}
 	if iat, exp := i.authenticator.AuthenticationTime(r); active {
 		loginStart = iat.Format(time.RFC3339)
 		loginExpiry = exp.Format(time.RFC3339)
 	}
+	var codeVerifier = stringutil.RandomBytesString(10)
 	var err = t.ExecuteTemplate(w, "index", map[string]interface{}{
-		"issuer":       strings.TrimRight(i.settings.Issuer, "/"),
-		"public_key":   string(pubBytes),
-		"state":        fmt.Sprint(rand.Int()),
-		"clients":      i.settings.Clients,
-		"title":        i.settings.Title,
-		"user_id":      userID,
-		"user":         user,
-		"login_start":  loginStart,
-		"login_expiry": loginExpiry,
-		"login_active": active,
+		"issuer":         strings.TrimRight(i.settings.Issuer, "/"),
+		"public_key":     string(pubBytes),
+		"state":          fmt.Sprint(rand.Int()),
+		"clients":        i.settings.Clients,
+		"title":          i.settings.Title,
+		"user_id":        userID,
+		"user":           user,
+		"login_start":    loginStart,
+		"login_expiry":   loginExpiry,
+		"login_active":   active,
+		"pkce":           i.usePKCE,
+		"code_verifier":  codeVerifier,
+		"code_challenge": pkce.CodeChallange(codeVerifier),
 	})
 	if err != nil {
 		htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func IndexHandler(settings *Settings, authenticator store.Authenticator) http.Handler {
+func IndexHandler(settings *Settings, authenticator store.Authenticator, usePKCE bool) http.Handler {
 	return &indexHandler{
 		settings:      settings,
 		authenticator: authenticator,
+		usePKCE:       usePKCE,
 	}
 }
