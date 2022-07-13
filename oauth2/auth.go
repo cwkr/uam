@@ -58,7 +58,7 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch responseType {
-	case "token":
+	case ResponseTypeToken:
 		var x, err = a.tokenService.GenerateAccessToken(user)
 		if err != nil {
 			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
@@ -73,12 +73,12 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"expires_in":   {fmt.Sprint(a.tokenService.AccessTokenLifetime())},
 			"state":        {state},
 		})
-	case "code":
+	case ResponseTypeCode:
 		if !a.disablePKCE && (challenge == "" || challengeMethod != "S256") {
 			htmlutil.Error(w, "code_challenge and code_challenge_method=S256 required for PKCE", http.StatusInternalServerError)
 			return
 		}
-		var x, err = a.tokenService.GenerateAuthCode(user, clientID, challenge)
+		var x, err = a.tokenService.GenerateAuthCode(user.UserID, clientID, challenge)
 		if err != nil {
 			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 			return

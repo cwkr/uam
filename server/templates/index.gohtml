@@ -121,13 +121,22 @@
             {{- end }}
         });
         fetch("token", {method: "POST", body: postParams})
-            .then(res => res.json())
+            .then(async resp => {
+                if (!resp.ok) {
+                    throw new Error(await resp.text());
+                }
+                return resp.json();
+            })
             .then(data => {
                 document.getElementById("token_output").textContent = data.access_token;
                 sessionStorage.removeItem('client_id'+urlParams.get("state"));
                 {{- if .pkce }}
                 sessionStorage.removeItem('code_verifier'+urlParams.get("state"));
                 {{- end }}
+            })
+            .catch(error => {
+                console.error(error);
+                document.getElementById("token_output").textContent = error.message;
             });
     }
 </script>

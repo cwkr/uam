@@ -98,7 +98,7 @@ func main() {
 		Methods(http.MethodGet)
 	router.Handle("/jwks", oauth2.JwksHandler(settings.AllKeys())).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle("/token", oauth2.TokenHandler(tokenService, settings.Clients, settings.DisablePKCE)).
+	router.Handle("/token", oauth2.TokenHandler(tokenService, authenticator, settings.Clients, settings.DisablePKCE)).
 		Methods(http.MethodOptions, http.MethodPost)
 	router.Handle("/auth", oauth2.AuthHandler(tokenService, authenticator, settings.Clients, settings.DisablePKCE)).
 		Methods(http.MethodGet)

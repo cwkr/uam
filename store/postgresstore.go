@@ -35,9 +35,61 @@ func NewPostgresAuthenticator(sessionStore sessions.Store, users map[string]Embe
 	}, nil
 }
 
+func (p postgresAuthenticator) QueryGroups(userID string) ([]string, error) {
+	var groups []string
+
+	log.Printf("SQL: %s; $1 = %s", p.groupsQuery, userID)
+	// SELECT id FROM groups WHERE lower(user_id) = lower($1)
+	if rows, err := p.dbconn.Query(p.groupsQuery, userID); err == nil {
+
+		for rows.Next() {
+			var group string
+			if err := rows.Scan(&group); err == nil {
+				groups = append(groups, group)
+			} else {
+				return nil, err
+			}
+		}
+
+	} else {
+		return nil, err
+	}
+	return groups, nil
+}
+
+func (p postgresAuthenticator) QueryDetails(userID string) (map[string]interface{}, error) {
+	var details = make(map[string]interface{})
+
+	log.Printf("SQL: %s; $1 = %s", p.detailsQuery, userID)
+	// SELECT first_name, last_name FROM users WHERE lower(id) = lower($1)
+	if rows, err := p.dbconn.Query(p.detailsQuery, userID); err == nil {
+		var cols, _ = rows.Columns()
+		if rows.Next() {
+			var columns = make([]interface{}, len(cols))
+			var columnPointers = make([]interface{}, len(cols))
+			for i, _ := range columns {
+				columnPointers[i] = &columns[i]
+			}
+			if err := rows.Scan(columnPointers...); err == nil {
+				for i, colName := range cols {
+					val := columnPointers[i].(*interface{})
+					details[colName] = *val
+				}
+			} else {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
+	return details, nil
+}
+
 func (p postgresAuthenticator) Authenticate(userID, password string) (User, bool) {
-	var user, foundUser = p.embeddedAuthenticator.Authenticate(userID, password)
-	if foundUser {
+	var user, found = p.embeddedAuthenticator.Authenticate(userID, password)
+	if found {
 		return user, true
 	}
 
@@ -49,45 +101,19 @@ func (p postgresAuthenticator) Authenticate(userID, password string) (User, bool
 		if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)); err != nil {
 			log.Printf("!!! Authenticate failed: %v", err)
 		} else {
+			var details map[string]interface{}
 			var groups []string
-			log.Printf("SQL: %s; $1 = %s", p.groupsQuery, userID)
-			// SELECT id FROM groups WHERE lower(user_id) = lower($1)
-			if rows, err := p.dbconn.Query(p.groupsQuery, userID); err == nil {
+			var err error
 
-				for rows.Next() {
-					var group string
-					if err := rows.Scan(&group); err == nil {
-						groups = append(groups, group)
-					}
-				}
+			if details, err = p.QueryDetails(userID); err != nil {
+				log.Printf("!!! Query for details failed: %v", err)
+				return User{}, false
+			}
 
-			} else {
+			if groups, err = p.QueryGroups(userID); err != nil {
 				log.Printf("!!! Query for groups failed: %v", err)
 			}
 
-			var details = make(map[string]interface{})
-			log.Printf("SQL: %s; $1 = %s", p.detailsQuery, userID)
-			// SELECT first_name, last_name FROM users WHERE lower(id) = lower($1)
-			if rows, err := p.dbconn.Query(p.detailsQuery, userID); err == nil {
-				var cols, _ = rows.Columns()
-				if rows.Next() {
-					var columns = make([]interface{}, len(cols))
-					var columnPointers = make([]interface{}, len(cols))
-					for i, _ := range columns {
-						columnPointers[i] = &columns[i]
-					}
-					if err := rows.Scan(columnPointers...); err == nil {
-
-						for i, colName := range cols {
-							val := columnPointers[i].(*interface{})
-							details[colName] = *val
-						}
-
-					}
-				}
-			} else {
-				log.Printf("!!! Query for details failed: %v", err)
-			}
 			return User{Groups: groups, Details: details}, true
 		}
 	} else {
@@ -95,4 +121,26 @@ func (p postgresAuthenticator) Authenticate(userID, password string) (User, bool
 	}
 
 	return User{}, false
+}
+
+func (p postgresAuthenticator) Lookup(userID string) (User, bool) {
+	var user, found = p.embeddedAuthenticator.Lookup(userID)
+	if found {
+		return user, true
+	}
+
+	var details map[string]interface{}
+	var groups []string
+	var err error
+
+	if details, err = p.QueryDetails(userID); err != nil {
+		log.Printf("!!! Query for details failed: %v", err)
+		return User{}, false
+	}
+
+	if groups, err = p.QueryGroups(userID); err != nil {
+		log.Printf("!!! Query for groups failed: %v", err)
+	}
+
+	return User{Groups: groups, Details: details}, true
 }

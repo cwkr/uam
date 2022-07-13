@@ -68,3 +68,13 @@ func (e embeddedAuthenticator) AuthenticationTime(r *http.Request) (time.Time, t
 	}
 	return time.Time{}, time.Time{}
 }
+
+func (e embeddedAuthenticator) Lookup(userID string) (User, bool) {
+	var user, found = e.users[strings.ToLower(userID)]
+
+	if found {
+		return user.User, true
+	}
+
+	return User{}, false
+}
