@@ -39,7 +39,7 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Bytes: pubASN1,
 	})
 
-	var userID, user, active = i.authenticator.IsAuthenticated(r)
+	var userID, active = i.authenticator.IsAuthenticated(r)
 
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
 	var loginStart, loginExpiry string
@@ -55,7 +55,6 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"clients":        i.settings.Clients,
 		"title":          i.settings.Title,
 		"user_id":        userID,
-		"user":           user,
 		"login_start":    loginStart,
 		"login_expiry":   loginExpiry,
 		"login_active":   active,

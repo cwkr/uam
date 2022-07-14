@@ -300,7 +300,7 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		var user, found = j.authenticator.Lookup(userID)
 		if !found {
-			Error(w, ErrorInvalidGrant, "user not found")
+			Error(w, ErrorInternal, "user not found")
 			return
 		}
 		accessToken, _ = j.tokenService.GenerateAccessToken(User{User: user, UserID: userID})
@@ -317,7 +317,7 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		var user, found = j.authenticator.Lookup(userID)
 		if !found {
-			Error(w, ErrorInvalidGrant, "user not found")
+			Error(w, ErrorInternal, "user not found")
 			return
 		}
 		accessToken, _ = j.tokenService.GenerateAccessToken(User{User: user, UserID: userID})

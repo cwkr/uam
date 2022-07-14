@@ -34,36 +34,37 @@ func NewEmbeddedAuthenticator(sessionStore sessions.Store, users map[string]Embe
 	}
 }
 
-func (e embeddedAuthenticator) Authenticate(userID, password string) (User, bool) {
-	var user, foundUser = e.users[strings.ToLower(userID)]
+func (e embeddedAuthenticator) Authenticate(userID, password string) (string, bool) {
+	var lowercaseUserID = strings.ToLower(userID)
+	var user, foundUser = e.users[strings.ToLower(lowercaseUserID)]
 
 	if foundUser {
 		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 			log.Printf("Authenticate failed: %v", err)
 		} else {
-			return user.User, true
+			return lowercaseUserID, true
 		}
 	}
 
-	return User{}, false
+	return "", false
 }
 
-func (e embeddedAuthenticator) IsAuthenticated(r *http.Request) (string, User, bool) {
+func (e embeddedAuthenticator) IsAuthenticated(r *http.Request) (string, bool) {
 	var session, _ = e.sessionStore.Get(r, e.sessionID)
 
-	var usr, uid, sct = session.Values["usr"], session.Values["uid"], session.Values["sct"]
+	var uid, sct = session.Values["uid"], session.Values["sct"]
 
-	if usr != nil && uid != nil && sct != nil && (sct.(time.Time)).Add(time.Duration(e.sessionLifetime)*time.Second).After(time.Now()) {
-		return uid.(string), usr.(User), true
+	if uid != nil && sct != nil && time.Unix(sct.(int64), 0).Add(time.Duration(e.sessionLifetime)*time.Second).After(time.Now()) {
+		return uid.(string), true
 	}
 
-	return "", User{}, false
+	return "", false
 }
 
 func (e embeddedAuthenticator) AuthenticationTime(r *http.Request) (time.Time, time.Time) {
 	var session, _ = e.sessionStore.Get(r, e.sessionID)
 	if sct := session.Values["sct"]; sct != nil {
-		var ctime = sct.(time.Time)
+		var ctime = time.Unix(sct.(int64), 0)
 		return ctime, ctime.Add(time.Duration(e.sessionLifetime) * time.Second)
 	}
 	return time.Time{}, time.Time{}

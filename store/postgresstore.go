@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"github.com/gorilla/sessions"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
@@ -79,7 +80,7 @@ func (p postgresAuthenticator) QueryDetails(userID string) (map[string]interface
 				return nil, err
 			}
 		} else {
-			return nil, err
+			return nil, errors.New("not found")
 		}
 	} else {
 		return nil, err
@@ -87,40 +88,27 @@ func (p postgresAuthenticator) QueryDetails(userID string) (map[string]interface
 	return details, nil
 }
 
-func (p postgresAuthenticator) Authenticate(userID, password string) (User, bool) {
+func (p postgresAuthenticator) Authenticate(userID, password string) (string, bool) {
 	var user, found = p.embeddedAuthenticator.Authenticate(userID, password)
 	if found {
 		return user, true
 	}
 
-	// SELECT password_hash FROM users WHERE lower(id) = lower($1)
+	// SELECT id, password_hash FROM users WHERE lower(id) = lower($1)
 	log.Printf("SQL: %s; $1 = %s", p.userQuery, userID)
 	var row = p.dbconn.QueryRow(p.userQuery, userID)
-	var passwordHash string
-	if err := row.Scan(&passwordHash); err == nil {
+	var passwordHash, realUserID string
+	if err := row.Scan(&realUserID, &passwordHash); err == nil {
 		if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)); err != nil {
 			log.Printf("!!! Authenticate failed: %v", err)
 		} else {
-			var details map[string]interface{}
-			var groups []string
-			var err error
-
-			if details, err = p.QueryDetails(userID); err != nil {
-				log.Printf("!!! Query for details failed: %v", err)
-				return User{}, false
-			}
-
-			if groups, err = p.QueryGroups(userID); err != nil {
-				log.Printf("!!! Query for groups failed: %v", err)
-			}
-
-			return User{Groups: groups, Details: details}, true
+			return realUserID, true
 		}
 	} else {
 		log.Printf("!!! Query for user failed: %v", err)
 	}
 
-	return User{}, false
+	return "", false
 }
 
 func (p postgresAuthenticator) Lookup(userID string) (User, bool) {

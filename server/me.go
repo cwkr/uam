@@ -15,7 +15,8 @@ type meHandler struct {
 func (i *meHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
-	var userID, user, active = i.authenticator.IsAuthenticated(r)
+	var userID, active = i.authenticator.IsAuthenticated(r)
+	var user, _ = i.authenticator.Lookup(userID)
 
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
 	w.Header().Set("Content-Type", "application/json")

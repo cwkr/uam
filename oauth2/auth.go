@@ -33,8 +33,14 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		user            User
 	)
 
-	if uid, usr, active := a.authenticator.IsAuthenticated(r); active {
-		user = User{UserID: uid, User: usr}
+	if uid, active := a.authenticator.IsAuthenticated(r); active {
+		var usr, found = a.authenticator.Lookup(uid)
+		if found {
+			user = User{UserID: uid, User: usr}
+		} else {
+			htmlutil.Error(w, "user not found", http.StatusInternalServerError)
+			return
+		}
 	} else {
 		httputil.RedirectQuery(w, r, strings.TrimRight(a.tokenService.Issuer(), "/")+"/login", r.URL.Query())
 		return

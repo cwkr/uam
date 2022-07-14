@@ -42,16 +42,15 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if stringutil.IsAnyEmpty(userID, password) {
 			message = "Username and password must not be empty"
 		} else {
-			if user, authenticated := j.authenticator.Authenticate(userID, password); authenticated {
-				session.Values["uid"] = userID
-				session.Values["usr"] = user
+			if realUserID, authenticated := j.authenticator.Authenticate(userID, password); authenticated {
+				session.Values["uid"] = realUserID
 				var now = time.Now()
-				session.Values["sct"] = now
+				session.Values["sct"] = now.Unix()
 				if err := session.Save(r, w); err != nil {
 					htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
-				log.Printf("userID = %s, user = %#v", userID, user)
+				log.Printf("userID = %s", realUserID)
 				httputil.RedirectQuery(w, r, strings.TrimRight(j.settings.Issuer, "/")+"/auth", r.URL.Query())
 				return
 			} else {

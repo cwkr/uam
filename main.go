@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/gob"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -15,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 )
 
 var (
@@ -27,9 +25,6 @@ func main() {
 	var err error
 	var configFilename string
 	var saveConfig bool
-
-	gob.RegisterName("user", store.User{})
-	gob.RegisterName("time", time.Time{})
 
 	log.SetOutput(os.Stdout)
 
