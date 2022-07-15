@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/cwkr/auth-server/htmlutil"
@@ -12,6 +13,7 @@ import (
 	"github.com/gorilla/sessions"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -76,12 +78,30 @@ func main() {
 
 	var authenticator store.Authenticator
 	if strings.HasPrefix(settings.StoreURI, "postgresql:") {
-		if authenticator, err = store.NewPostgresAuthenticator(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime,
+		if authenticator, err = store.NewDatabaseAuthenticator(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime,
 			settings.StoreURI, settings.UserQuery, settings.GroupsQuery, settings.DetailsQuery); err != nil {
 			panic(err)
 		}
-	} else {
+	} else if strings.HasPrefix(settings.StoreURI, "ldap:") || strings.HasPrefix(settings.StoreURI, "ldaps:") {
+		var ldapURL, bindUsername, bindPassword, baseDN string
+		if url, err := url.Parse(settings.StoreURI); err == nil {
+			if url.User != nil {
+				bindUsername = url.User.Username()
+				bindPassword, _ = url.User.Password()
+			}
+			baseDN = url.Query().Get("base_dn")
+			ldapURL = fmt.Sprintf("%s://%s", url.Scheme, url.Host)
+		} else {
+			panic(err)
+		}
+		if authenticator, err = store.NewDirectoryAuthenticator(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime,
+			ldapURL, baseDN, bindUsername, bindPassword, settings.UserQuery, settings.GroupsQuery, settings.DetailsQuery, settings.Details); err != nil {
+			panic(err)
+		}
+	} else if settings.StoreURI == "" {
 		authenticator = store.NewEmbeddedAuthenticator(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime)
+	} else {
+		panic(errors.New("unsupported store uri: " + settings.StoreURI))
 	}
 
 	var router = mux.NewRouter()

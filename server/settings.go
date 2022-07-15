@@ -31,9 +31,10 @@ type Settings struct {
 	SessionLifetime      int                           `json:"session_lifetime"`
 	DisablePKCE          bool                          `json:"disable_pkce"`
 	StoreURI             string                        `json:"store_uri,omitempty"`
-	UserQuery            string                        `json:"user_query"`
-	GroupsQuery          string                        `json:"groups_query"`
-	DetailsQuery         string                        `json:"details_query"`
+	UserQuery            string                        `json:"user_query,omitempty"`
+	GroupsQuery          string                        `json:"groups_query,omitempty"`
+	DetailsQuery         string                        `json:"details_query,omitempty"`
+	Details              []string                      `json:"details,omitempty"`
 	rsaSigningKey        *rsa.PrivateKey
 	rsaSigningKeyID      string
 	rsaAdditionalKeys    map[string]*rsa.PublicKey

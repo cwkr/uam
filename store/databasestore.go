@@ -9,7 +9,7 @@ import (
 	"log"
 )
 
-type postgresAuthenticator struct {
+type databaseAuthenticator struct {
 	embeddedAuthenticator
 	dbconn       *sql.DB
 	userQuery    string
@@ -17,12 +17,12 @@ type postgresAuthenticator struct {
 	detailsQuery string
 }
 
-func NewPostgresAuthenticator(sessionStore sessions.Store, users map[string]EmbeddedUser, sessionID string, sessionLifetime int, uri, userQuery, groupsQuery, detailsQuery string) (Authenticator, error) {
+func NewDatabaseAuthenticator(sessionStore sessions.Store, users map[string]EmbeddedUser, sessionID string, sessionLifetime int, uri, userQuery, groupsQuery, detailsQuery string) (Authenticator, error) {
 	dbconn, err := sql.Open("postgres", uri)
 	if err != nil {
 		return nil, err
 	}
-	return &postgresAuthenticator{
+	return &databaseAuthenticator{
 		embeddedAuthenticator: embeddedAuthenticator{
 			sessionStore:    sessionStore,
 			users:           users,
@@ -36,7 +36,7 @@ func NewPostgresAuthenticator(sessionStore sessions.Store, users map[string]Embe
 	}, nil
 }
 
-func (p postgresAuthenticator) QueryGroups(userID string) ([]string, error) {
+func (p databaseAuthenticator) QueryGroups(userID string) ([]string, error) {
 	var groups []string
 
 	log.Printf("SQL: %s; $1 = %s", p.groupsQuery, userID)
@@ -58,7 +58,7 @@ func (p postgresAuthenticator) QueryGroups(userID string) ([]string, error) {
 	return groups, nil
 }
 
-func (p postgresAuthenticator) QueryDetails(userID string) (map[string]any, error) {
+func (p databaseAuthenticator) QueryDetails(userID string) (map[string]any, error) {
 	var details = make(map[string]any)
 
 	log.Printf("SQL: %s; $1 = %s", p.detailsQuery, userID)
@@ -88,7 +88,7 @@ func (p postgresAuthenticator) QueryDetails(userID string) (map[string]any, erro
 	return details, nil
 }
 
-func (p postgresAuthenticator) Authenticate(userID, password string) (string, bool) {
+func (p databaseAuthenticator) Authenticate(userID, password string) (string, bool) {
 	var user, found = p.embeddedAuthenticator.Authenticate(userID, password)
 	if found {
 		return user, true
@@ -111,7 +111,7 @@ func (p postgresAuthenticator) Authenticate(userID, password string) (string, bo
 	return "", false
 }
 
-func (p postgresAuthenticator) Lookup(userID string) (User, bool) {
+func (p databaseAuthenticator) Lookup(userID string) (User, bool) {
 	var user, found = p.embeddedAuthenticator.Lookup(userID)
 	if found {
 		return user, true
