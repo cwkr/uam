@@ -58,22 +58,22 @@ func (p postgresAuthenticator) QueryGroups(userID string) ([]string, error) {
 	return groups, nil
 }
 
-func (p postgresAuthenticator) QueryDetails(userID string) (map[string]interface{}, error) {
-	var details = make(map[string]interface{})
+func (p postgresAuthenticator) QueryDetails(userID string) (map[string]any, error) {
+	var details = make(map[string]any)
 
 	log.Printf("SQL: %s; $1 = %s", p.detailsQuery, userID)
 	// SELECT first_name, last_name FROM users WHERE lower(id) = lower($1)
 	if rows, err := p.dbconn.Query(p.detailsQuery, userID); err == nil {
 		var cols, _ = rows.Columns()
 		if rows.Next() {
-			var columns = make([]interface{}, len(cols))
-			var columnPointers = make([]interface{}, len(cols))
+			var columns = make([]any, len(cols))
+			var columnPointers = make([]any, len(cols))
 			for i, _ := range columns {
 				columnPointers[i] = &columns[i]
 			}
 			if err := rows.Scan(columnPointers...); err == nil {
 				for i, colName := range cols {
-					val := columnPointers[i].(*interface{})
+					val := columnPointers[i].(*any)
 					details[colName] = *val
 				}
 			} else {
@@ -117,7 +117,7 @@ func (p postgresAuthenticator) Lookup(userID string) (User, bool) {
 		return user, true
 	}
 
-	var details map[string]interface{}
+	var details map[string]any
 	var groups []string
 	var err error
 

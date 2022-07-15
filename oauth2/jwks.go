@@ -81,7 +81,7 @@ func LoadPublicKeys(keys []string) (map[string]*rsa.PublicKey, error) {
 		case "public key":
 			var err error
 			var ok bool
-			var k interface{}
+			var k any
 			k, err = x509.ParsePKIXPublicKey(block.Bytes)
 			if err != nil {
 				return nil, err

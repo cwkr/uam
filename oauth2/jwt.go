@@ -36,7 +36,7 @@ const (
 	ResponseTypeToken     = "token"
 )
 
-type Claims map[string]interface{}
+type Claims map[string]any
 
 type User struct {
 	store.User
@@ -90,7 +90,7 @@ func (t tokenService) GenerateAccessToken(user User) (string, error) {
 	}
 
 	var customFuncs = template.FuncMap{
-		"join": func(sep interface{}, elems []string) string {
+		"join": func(sep any, elems []string) string {
 			switch sep.(type) {
 			case string:
 				return strings.Join(elems, sep.(string))
@@ -124,7 +124,7 @@ func (t tokenService) GenerateAccessToken(user User) (string, error) {
 		}
 	}
 
-	return jwt.Signed(t.signer).Claims(map[string]interface{}(claims)).CompactSerialize()
+	return jwt.Signed(t.signer).Claims(map[string]any(claims)).CompactSerialize()
 }
 
 func (t tokenService) GenerateAuthCode(userID, clientID, challenge string) (string, error) {
@@ -143,7 +143,7 @@ func (t tokenService) GenerateAuthCode(userID, clientID, challenge string) (stri
 		"challenge":         challenge,
 	}
 
-	return jwt.Signed(t.signer).Claims(map[string]interface{}(claims)).CompactSerialize()
+	return jwt.Signed(t.signer).Claims(map[string]any(claims)).CompactSerialize()
 }
 
 func (t tokenService) GenerateRefreshToken(userID, clientID string) (string, error) {
@@ -161,7 +161,7 @@ func (t tokenService) GenerateRefreshToken(userID, clientID string) (string, err
 		ClaimScope:          strings.Join(t.scopes, " "),
 	}
 
-	return jwt.Signed(t.signer).Claims(map[string]interface{}(claims)).CompactSerialize()
+	return jwt.Signed(t.signer).Claims(map[string]any(claims)).CompactSerialize()
 }
 
 func (t tokenService) VerifyAuthCode(rawToken string) (string, string, bool) {

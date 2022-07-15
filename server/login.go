@@ -63,7 +63,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Content-Type", "text/html;charset=UTF-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	var err = t.ExecuteTemplate(w, "login", map[string]interface{}{
+	var err = t.ExecuteTemplate(w, "login", map[string]any{
 		"issuer":  strings.TrimRight(j.settings.Issuer, "/"),
 		"query":   template.HTML("?" + r.URL.RawQuery),
 		"message": message,

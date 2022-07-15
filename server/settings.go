@@ -47,7 +47,7 @@ func NewDefaultSettings() *Settings {
 		Users: map[string]store.EmbeddedUser{
 			"user": {
 				User: store.User{
-					Details: map[string]interface{}{
+					Details: map[string]any{
 						"first_name": "First Name",
 						"last_name":  "Last Name",
 						"email":      "email@example.org",

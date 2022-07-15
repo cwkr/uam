@@ -48,7 +48,7 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		loginExpiry = exp.Format(time.RFC3339)
 	}
 	var codeVerifier = stringutil.RandomBytesString(10)
-	var err = t.ExecuteTemplate(w, "index", map[string]interface{}{
+	var err = t.ExecuteTemplate(w, "index", map[string]any{
 		"issuer":         strings.TrimRight(i.settings.Issuer, "/"),
 		"public_key":     string(pubBytes),
 		"state":          fmt.Sprint(rand.Int()),
