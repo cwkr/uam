@@ -5,15 +5,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/cwkr/auth-server/directory"
 	"github.com/cwkr/auth-server/htmlutil"
 	"github.com/cwkr/auth-server/oauth2"
 	"github.com/cwkr/auth-server/server"
-	"github.com/cwkr/auth-server/store"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 )
@@ -63,7 +62,7 @@ func main() {
 		settings.PrivateKey(),
 		settings.KeyID(),
 		settings.Issuer,
-		settings.Scopes,
+		settings.Scope,
 		int64(settings.AccessTokenLifetime),
 		int64(settings.RefreshTokenLifetime),
 		settings.Claims,
@@ -76,54 +75,45 @@ func main() {
 	sessionStore.Options.HttpOnly = true
 	sessionStore.Options.MaxAge = 0
 
-	var authenticator store.Authenticator
-	if strings.HasPrefix(settings.StoreURI, "postgresql:") {
-		if authenticator, err = store.NewDatabaseAuthenticator(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime,
-			settings.StoreURI, settings.UserQuery, settings.GroupsQuery, settings.DetailsQuery); err != nil {
-			panic(err)
-		}
-	} else if strings.HasPrefix(settings.StoreURI, "ldap:") || strings.HasPrefix(settings.StoreURI, "ldaps:") {
-		var ldapURL, bindUsername, bindPassword, baseDN string
-		if url, err := url.Parse(settings.StoreURI); err == nil {
-			if url.User != nil {
-				bindUsername = url.User.Username()
-				bindPassword, _ = url.User.Password()
+	var directoryStore directory.Store
+	if settings.Directory != nil {
+		if strings.HasPrefix(settings.Directory.URI, "postgresql:") {
+			if directoryStore, err = directory.NewDatabaseStore(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime, settings.Directory); err != nil {
+				panic(err)
 			}
-			baseDN = url.Query().Get("base_dn")
-			ldapURL = fmt.Sprintf("%s://%s", url.Scheme, url.Host)
+		} else if strings.HasPrefix(settings.Directory.URI, "ldap:") || strings.HasPrefix(settings.Directory.URI, "ldaps:") {
+			if directoryStore, err = directory.NewLdapStore(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime, settings.Directory); err != nil {
+				panic(err)
+			}
 		} else {
-			panic(err)
+			panic(errors.New("unsupported or empty store uri: " + settings.Directory.URI))
 		}
-		if authenticator, err = store.NewDirectoryAuthenticator(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime,
-			ldapURL, baseDN, bindUsername, bindPassword, settings.UserQuery, settings.GroupsQuery, settings.DetailsQuery, settings.Details); err != nil {
-			panic(err)
-		}
-	} else if settings.StoreURI == "" {
-		authenticator = store.NewEmbeddedAuthenticator(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime)
 	} else {
-		panic(errors.New("unsupported store uri: " + settings.StoreURI))
+		directoryStore = directory.NewEmbeddedStore(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime)
 	}
 
 	var router = mux.NewRouter()
 
 	router.NotFoundHandler = htmlutil.NotFoundHandler()
-	router.Handle("/", server.IndexHandler(settings, authenticator, !settings.DisablePKCE)).
+	router.Handle("/", server.IndexHandler(settings, directoryStore, !settings.DisablePKCE)).
 		Methods(http.MethodGet)
 	router.Handle("/style", server.StyleHandler()).
 		Methods(http.MethodGet)
 	router.Handle("/jwks", oauth2.JwksHandler(settings.AllKeys())).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle("/token", oauth2.TokenHandler(tokenService, authenticator, settings.Clients, settings.DisablePKCE)).
+	router.Handle("/token", oauth2.TokenHandler(tokenService, directoryStore, settings.Clients, settings.DisablePKCE)).
 		Methods(http.MethodOptions, http.MethodPost)
-	router.Handle("/auth", oauth2.AuthHandler(tokenService, authenticator, settings.Clients, settings.DisablePKCE)).
+	router.Handle("/authorize", oauth2.AuthorizeHandler(tokenService, directoryStore, settings.Clients, settings.Scope, settings.DisablePKCE)).
 		Methods(http.MethodGet)
-	router.Handle("/login", server.LoginHandler(settings, authenticator, sessionStore)).
+	router.Handle("/login", server.LoginHandler(settings, directoryStore, sessionStore)).
 		Methods(http.MethodGet, http.MethodPost)
 	router.Handle("/logout", server.LogoutHandler(settings, sessionStore))
-	router.Handle("/.well-known/openid-configuration", oauth2.DiscoveryDocumentHandler(settings.Issuer, settings.Scopes, settings.DisablePKCE)).
+	router.Handle("/.well-known/openid-configuration", oauth2.DiscoveryDocumentHandler(settings.Issuer, settings.Scope, settings.DisablePKCE)).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle("/me", server.MeHandler(authenticator)).
-		Methods(http.MethodGet)
+	if !settings.DisablePeopleLookup {
+		router.Handle("/people/{user_id}", oauth2.PeopleHandler(directoryStore, settings.PeopleLookupResponse)).
+			Methods(http.MethodGet, http.MethodOptions)
+	}
 
 	log.Printf("Listening on http://localhost:%d/", settings.Port)
 	err = http.ListenAndServe(fmt.Sprintf(":%d", settings.Port), router)

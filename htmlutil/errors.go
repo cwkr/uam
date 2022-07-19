@@ -12,5 +12,5 @@ func Error(w http.ResponseWriter, error string, code int) {
 	w.Header().Set("Content-Type", "text/html;charset=UTF-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(code)
-	fmt.Fprintf(w, "<!DOCTYPE html><link rel=\"stylesheet\" href=\"style\"><h1>%d %s</h1><p>%s</p>", code, statusText, error)
+	fmt.Fprintf(w, "<!DOCTYPE html><link rel=\"stylesheet\" href=\"/style\"><h1>%d %s</h1><p>%s</p>", code, statusText, error)
 }

@@ -2,9 +2,9 @@ package server
 
 import (
 	_ "embed"
+	"github.com/cwkr/auth-server/directory"
 	"github.com/cwkr/auth-server/htmlutil"
 	"github.com/cwkr/auth-server/httputil"
-	"github.com/cwkr/auth-server/store"
 	"github.com/cwkr/auth-server/stringutil"
 	"github.com/gorilla/sessions"
 	"html/template"
@@ -24,7 +24,7 @@ var loginTpl string
 
 type loginHandler struct {
 	settings      *Settings
-	authenticator store.Authenticator
+	authenticator directory.Store
 	sessionStore  sessions.Store
 }
 
@@ -51,7 +51,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				log.Printf("userID = %s", realUserID)
-				httputil.RedirectQuery(w, r, strings.TrimRight(j.settings.Issuer, "/")+"/auth", r.URL.Query())
+				httputil.RedirectQuery(w, r, strings.TrimRight(j.settings.Issuer, "/")+"/authorize", r.URL.Query())
 				return
 			} else {
 				message = "Invalid username and/or password"
@@ -75,7 +75,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func LoginHandler(settings *Settings, authenticator store.Authenticator, sessionStore sessions.Store) http.Handler {
+func LoginHandler(settings *Settings, authenticator directory.Store, sessionStore sessions.Store) http.Handler {
 	return &loginHandler{
 		settings:      settings,
 		authenticator: authenticator,

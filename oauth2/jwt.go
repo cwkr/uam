@@ -4,8 +4,8 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"github.com/cwkr/auth-server/directory"
 	"github.com/cwkr/auth-server/oauth2/pkce"
-	"github.com/cwkr/auth-server/store"
 	"github.com/cwkr/auth-server/stringutil"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -22,7 +22,7 @@ const (
 	ClaimIssuer         = "iss"
 	ClaimIssuedAtTime   = "iat"
 	ClaimNotBeforeTime  = "nbf"
-	ClaimPrincipal      = "prn"
+	ClaimUserID         = "user_id"
 	ClaimScope          = "scope"
 	ClaimSubject        = "sub"
 	ClaimType           = "typ"
@@ -39,16 +39,16 @@ const (
 type Claims map[string]any
 
 type User struct {
-	store.User
-	UserID string
+	directory.Person
+	UserID string `json:"user_id"`
 }
 
 type TokenService interface {
-	GenerateAccessToken(user User) (string, error)
-	GenerateAuthCode(userID, clientID, challenge string) (string, error)
-	GenerateRefreshToken(userID, clientID string) (string, error)
-	VerifyAuthCode(rawToken string) (userID, challenge string, valid bool)
-	VerifyRefreshToken(rawToken string) (userID string, valid bool)
+	GenerateAccessToken(user User, scope string) (string, error)
+	GenerateAuthCode(userID, clientID, scope, challenge string) (string, error)
+	GenerateRefreshToken(userID, clientID, scope string) (string, error)
+	VerifyAuthCode(rawToken string) (userID, scope, challenge string, valid bool)
+	VerifyRefreshToken(rawToken string) (userID, scope string, valid bool)
 	AccessTokenLifetime() int64
 	RefreshTokenLifetime() int64
 	Issuer() string
@@ -58,7 +58,7 @@ type tokenService struct {
 	privateKey           *rsa.PrivateKey
 	signer               jose.Signer
 	issuer               string
-	scopes               []string
+	scope                string
 	accessTokenLifetime  int64
 	refreshTokenLifetime int64
 	customClaims         Claims
@@ -76,58 +76,72 @@ func (t tokenService) Issuer() string {
 	return t.issuer
 }
 
-func (t tokenService) GenerateAccessToken(user User) (string, error) {
+var customFuncs = template.FuncMap{
+	"join": func(sep any, elems []string) string {
+		switch sep.(type) {
+		case string:
+			return strings.Join(elems, sep.(string))
+		case int:
+			return strings.Join(elems, string(rune(sep.(int))))
+		}
+		return strings.Join(elems, fmt.Sprint(sep))
+	},
+	"upper": strings.ToUpper,
+	"lower": strings.ToLower,
+}
+
+func customizeMap(dst, src map[string]any, data any) error {
+	for key, value := range src {
+		switch value.(type) {
+		case string:
+			var t, err = template.New(key).Funcs(customFuncs).Parse(value.(string))
+			if err != nil {
+				return err
+			}
+			var sb strings.Builder
+			err = t.ExecuteTemplate(&sb, key, data)
+			if err != nil {
+				return err
+			}
+			var customValue = sb.String()
+			if customValue != "" && customValue != "<no value>" {
+				dst[key] = customValue
+			}
+		case map[string]any:
+			var customValue = map[string]any{}
+			if err := customizeMap(customValue, value.(map[string]any), data); err != nil {
+				return err
+			}
+		default:
+			dst[key] = value
+		}
+	}
+	return nil
+}
+
+func (t tokenService) GenerateAccessToken(user User, scope string) (string, error) {
 	var now = time.Now().Unix()
 
 	var claims = Claims{
 		ClaimIssuer:         t.issuer,
 		ClaimSubject:        user.UserID,
-		ClaimPrincipal:      user.UserID,
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + t.accessTokenLifetime,
-		ClaimScope:          strings.Join(t.scopes, " "),
+		ClaimScope:          scope,
 	}
 
-	var customFuncs = template.FuncMap{
-		"join": func(sep any, elems []string) string {
-			switch sep.(type) {
-			case string:
-				return strings.Join(elems, sep.(string))
-			case int:
-				return strings.Join(elems, string(rune(sep.(int))))
-			}
-			return strings.Join(elems, fmt.Sprint(sep))
-		},
-		"upper": strings.ToUpper,
-		"lower": strings.ToLower,
-	}
-
-	for key, value := range t.customClaims {
-		switch value.(type) {
-		case string:
-			var t, err = template.New(key).Funcs(customFuncs).Parse(value.(string))
-			if err != nil {
-				return "", err
-			}
-			var sb strings.Builder
-			err = t.ExecuteTemplate(&sb, key, user)
-			if err != nil {
-				return "", err
-			}
-			var customValue = sb.String()
-			if customValue != "" {
-				claims[key] = customValue
-			}
-		default:
-			claims[key] = value
-		}
+	if err := customizeMap(claims, t.customClaims, struct {
+		User
+		Scope string
+	}{user, scope}); err != nil {
+		return "", err
 	}
 
 	return jwt.Signed(t.signer).Claims(map[string]any(claims)).CompactSerialize()
 }
 
-func (t tokenService) GenerateAuthCode(userID, clientID, challenge string) (string, error) {
+func (t tokenService) GenerateAuthCode(userID, clientID, scope, challenge string) (string, error) {
 	var now = time.Now().Unix()
 
 	var claims = Claims{
@@ -135,18 +149,18 @@ func (t tokenService) GenerateAuthCode(userID, clientID, challenge string) (stri
 		ClaimSubject:        stringutil.RandomBytesString(16),
 		ClaimType:           TokenTypeCode,
 		ClaimClientID:       clientID,
-		ClaimPrincipal:      userID,
+		ClaimUserID:         userID,
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + 300,
-		ClaimScope:          strings.Join(t.scopes, " "),
+		ClaimScope:          IntersectScope(t.scope, scope),
 		"challenge":         challenge,
 	}
 
 	return jwt.Signed(t.signer).Claims(map[string]any(claims)).CompactSerialize()
 }
 
-func (t tokenService) GenerateRefreshToken(userID, clientID string) (string, error) {
+func (t tokenService) GenerateRefreshToken(userID, clientID, scope string) (string, error) {
 	var now = time.Now().Unix()
 
 	var claims = Claims{
@@ -154,35 +168,36 @@ func (t tokenService) GenerateRefreshToken(userID, clientID string) (string, err
 		ClaimSubject:        stringutil.RandomBytesString(16),
 		ClaimType:           TokenTypeRefreshToken,
 		ClaimClientID:       clientID,
-		ClaimPrincipal:      userID,
+		ClaimUserID:         userID,
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + t.refreshTokenLifetime,
-		ClaimScope:          strings.Join(t.scopes, " "),
+		ClaimScope:          scope,
 	}
 
 	return jwt.Signed(t.signer).Claims(map[string]any(claims)).CompactSerialize()
 }
 
-func (t tokenService) VerifyAuthCode(rawToken string) (string, string, bool) {
+func (t tokenService) VerifyAuthCode(rawToken string) (string, string, string, bool) {
 	var token, err = jwt.ParseSigned(rawToken)
 	if err != nil {
 		log.Printf("!!! %s\n", err)
-		return "", "", false
+		return "", "", "", false
 	}
 	var claims = jwt.Claims{}
 	var tokenData = struct {
-		UserID    string `json:"prn"`
+		UserID    string `json:"user_id"`
 		ClientID  string `json:"client_id"`
 		Type      string `json:"typ"`
+		Scope     string `json:"scope"`
 		Challenge string `json:"challenge"`
 	}{}
 	if err := token.Claims(&t.privateKey.PublicKey, &claims, &tokenData); err != nil {
 		log.Printf("!!! %s\n", err)
-		return "", "", false
+		return "", "", "", false
 	}
 	if tokenData.Type != TokenTypeCode {
-		return "", "", false
+		return "", "", "", false
 	}
 	err = claims.ValidateWithLeeway(jwt.Expected{
 		Issuer: t.issuer,
@@ -190,30 +205,31 @@ func (t tokenService) VerifyAuthCode(rawToken string) (string, string, bool) {
 	}, 0)
 	if err != nil {
 		log.Printf("!!! %s\n", err)
-		return "", "", false
+		return "", "", "", false
 	} else {
-		return tokenData.UserID, tokenData.Challenge, true
+		return tokenData.UserID, tokenData.Scope, tokenData.Challenge, true
 	}
 }
 
-func (t tokenService) VerifyRefreshToken(rawToken string) (string, bool) {
+func (t tokenService) VerifyRefreshToken(rawToken string) (string, string, bool) {
 	var token, err = jwt.ParseSigned(rawToken)
 	if err != nil {
 		log.Printf("!!! %s\n", err)
-		return "", false
+		return "", "", false
 	}
 	var claims = jwt.Claims{}
 	var tokenData = struct {
-		UserID   string `json:"prn"`
+		UserID   string `json:"user_id"`
 		ClientID string `json:"client_id"`
+		Scope    string `json:"scope"`
 		Type     string `json:"typ"`
 	}{}
 	if err := token.Claims(&t.privateKey.PublicKey, &claims, &tokenData); err != nil {
 		log.Printf("!!! %s\n", err)
-		return "", false
+		return "", "", false
 	}
 	if tokenData.Type != TokenTypeRefreshToken {
-		return "", false
+		return "", "", false
 	}
 	err = claims.ValidateWithLeeway(jwt.Expected{
 		Issuer: t.issuer,
@@ -221,13 +237,13 @@ func (t tokenService) VerifyRefreshToken(rawToken string) (string, bool) {
 	}, 0)
 	if err != nil {
 		log.Printf("!!! %s\n", err)
-		return "", false
+		return "", "", false
 	} else {
-		return tokenData.UserID, true
+		return tokenData.UserID, tokenData.Scope, true
 	}
 }
 
-func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer string, scopes []string, accessTokenLifetime, refreshTokenLifetime int64, customClaims Claims) (TokenService, error) {
+func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer, scope string, accessTokenLifetime, refreshTokenLifetime int64, customClaims Claims) (TokenService, error) {
 	var signer, err = jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}, (&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", keyID))
 	if err != nil {
 		return nil, err
@@ -236,7 +252,7 @@ func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer string, scopes []
 		privateKey:           privateKey,
 		signer:               signer,
 		issuer:               issuer,
-		scopes:               scopes,
+		scope:                scope,
 		accessTokenLifetime:  accessTokenLifetime,
 		refreshTokenLifetime: refreshTokenLifetime,
 		customClaims:         customClaims,
@@ -245,7 +261,7 @@ func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer string, scopes []
 
 type tokenHandler struct {
 	tokenService  TokenService
-	authenticator store.Authenticator
+	authenticator directory.Store
 	clients       Clients
 	disablePKCE   bool
 }
@@ -269,7 +285,7 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		clientID = strings.TrimSpace(r.PostFormValue("client_id"))
 	}
 	if _, clientExists := j.clients[clientID]; !clientExists {
-		Error(w, ErrorInvalidClient, "wrong client id")
+		Error(w, ErrorInvalidClient, "wrong client id", http.StatusUnauthorized)
 		return
 	}
 	var (
@@ -283,47 +299,47 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch grantType {
 	case GrantTypeAuthorizationCode:
 		if j.disablePKCE && stringutil.IsAnyEmpty(clientID, code) {
-			Error(w, ErrorInvalidRequest, "client_id and code parameters are required")
+			Error(w, ErrorInvalidRequest, "client_id and code parameters are required", http.StatusBadRequest)
 			return
 		} else if !j.disablePKCE && stringutil.IsAnyEmpty(clientID, code, codeVerifier) {
-			Error(w, ErrorInvalidRequest, "client_id, code and code_verifier parameters are required")
+			Error(w, ErrorInvalidRequest, "client_id, code and code_verifier parameters are required", http.StatusBadRequest)
 			return
 		}
-		var userID, challenge, valid = j.tokenService.VerifyAuthCode(code)
+		var userID, scope, challenge, valid = j.tokenService.VerifyAuthCode(code)
 		if !j.disablePKCE && !pkce.Verify(challenge, codeVerifier) {
-			Error(w, ErrorInvalidGrant, "invalid challenge")
+			Error(w, ErrorInvalidGrant, "invalid challenge", http.StatusBadRequest)
 			return
 		}
 		if !valid {
-			Error(w, ErrorInvalidGrant, "invalid auth code")
+			Error(w, ErrorInvalidGrant, "invalid auth code", http.StatusBadRequest)
 			return
 		}
 		var user, found = j.authenticator.Lookup(userID)
 		if !found {
-			Error(w, ErrorInternal, "user not found")
+			Error(w, ErrorInternal, "user not found", http.StatusInternalServerError)
 			return
 		}
-		accessToken, _ = j.tokenService.GenerateAccessToken(User{User: user, UserID: userID})
-		refreshToken, _ = j.tokenService.GenerateRefreshToken(userID, clientID)
+		accessToken, _ = j.tokenService.GenerateAccessToken(User{Person: user, UserID: userID}, scope)
+		refreshToken, _ = j.tokenService.GenerateRefreshToken(userID, clientID, scope)
 	case GrantTypeRefreshToken:
 		if stringutil.IsAnyEmpty(clientID, refreshToken) {
-			Error(w, ErrorInvalidRequest, "client_id and refresh_token parameters are required")
+			Error(w, ErrorInvalidRequest, "client_id and refresh_token parameters are required", http.StatusBadRequest)
 			return
 		}
-		var userID, valid = j.tokenService.VerifyRefreshToken(refreshToken)
+		var userID, scope, valid = j.tokenService.VerifyRefreshToken(refreshToken)
 		if !valid {
-			Error(w, ErrorInvalidGrant, "invalid refresh_token")
+			Error(w, ErrorInvalidGrant, "invalid refresh_token", http.StatusBadRequest)
 			return
 		}
 		var user, found = j.authenticator.Lookup(userID)
 		if !found {
-			Error(w, ErrorInternal, "user not found")
+			Error(w, ErrorInternal, "user not found", http.StatusInternalServerError)
 			return
 		}
-		accessToken, _ = j.tokenService.GenerateAccessToken(User{User: user, UserID: userID})
+		accessToken, _ = j.tokenService.GenerateAccessToken(User{Person: user, UserID: userID}, scope)
 		refreshToken = ""
 	default:
-		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code' and 'refresh_token' are supported")
+		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code' and 'refresh_token' are supported", http.StatusBadRequest)
 		return
 	}
 
@@ -334,7 +350,7 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		RefreshToken: refreshToken,
 	})
 	if err != nil {
-		Error(w, ErrorInternal, err.Error())
+		Error(w, ErrorInternal, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
@@ -343,7 +359,7 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
-func TokenHandler(tokenService TokenService, authenticator store.Authenticator, clients Clients, disablePKCE bool) http.Handler {
+func TokenHandler(tokenService TokenService, authenticator directory.Store, clients Clients, disablePKCE bool) http.Handler {
 	return &tokenHandler{
 		tokenService:  tokenService,
 		clients:       clients,

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ .title }}</title>
-    <link rel="stylesheet" href="style">
+    <link rel="stylesheet" href="/style">
     <script>
         function remember() {
             const state = document.getElementById("state").value;
@@ -37,7 +37,7 @@
 <body>
 <h1>{{ .title }}</h1>
 {{- if .login_active }}
-    <h2>Current user: <a href="{{ .issuer }}/me">{{ .user_id }}</a></h2>
+    <h2>Current user: {{ .user_id }}</h2>
     <p>Session started <strong>{{ .login_start }}</strong> will expire <strong>{{ .login_expiry }}</strong></p>
     <form method="get" action="{{ .issuer }}/logout">
         <input type="hidden" name="state" value="{{ .state }}">
@@ -45,9 +45,10 @@
     </form>
 {{- end }}
 <h2>OAuth2</h2>
-<form method="get" action="{{ .issuer }}/auth" onsubmit="remember()">
+<form method="get" action="{{ .issuer }}/authorize" onsubmit="remember()">
     <input type="hidden" name="redirect_uri" value="{{ .issuer }}/">
     <input type="hidden" id="state" name="state" value="{{ .state }}">
+    <input type="hidden" id="scope" name="scope" value="{{ .scope }}">
 {{- if .pkce }}
     <input type="hidden" id="code_verifier" name="code_verifier" value="{{ .code_verifier }}" disabled>
     <input type="hidden" id="code_challenge" name="code_challenge" value="{{ .code_challenge }}" disabled>

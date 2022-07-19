@@ -2,6 +2,7 @@ package oauth2
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 )
 
@@ -35,18 +36,15 @@ const (
 	ErrorInternal = "internal_server_error"
 )
 
-func Error(w http.ResponseWriter, error string, description string) {
-	var code = http.StatusBadRequest
-	if error == ErrorInvalidClient {
-		code = http.StatusUnauthorized
-	} else if error == ErrorInternal {
-		code = http.StatusInternalServerError
-	}
-
+func Error(w http.ResponseWriter, error string, description string, code int) {
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
+
+	if code == http.StatusUnauthorized {
+		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"auth\", error=\"%s\", error_description=\"%s\"", error, description))
+	}
 
 	w.WriteHeader(code)
 	var bytes, _ = json.Marshal(ErrorResponse{error, description})

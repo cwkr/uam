@@ -5,9 +5,9 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"github.com/cwkr/auth-server/directory"
 	"github.com/cwkr/auth-server/fileutil"
 	"github.com/cwkr/auth-server/oauth2"
-	"github.com/cwkr/auth-server/store"
 	"github.com/cwkr/auth-server/stringutil"
 	"os"
 	"path/filepath"
@@ -15,26 +15,24 @@ import (
 )
 
 type Settings struct {
-	Issuer               string                        `json:"issuer"`
-	Port                 int                           `json:"port"`
-	Title                string                        `json:"title"`
-	Users                map[string]store.EmbeddedUser `json:"users"`
-	Key                  string                        `json:"key"`
-	AdditionalKeys       []string                      `json:"additional_keys"`
-	Clients              oauth2.Clients                `json:"clients"`
-	Claims               oauth2.Claims                 `json:"claims"`
-	Scopes               []string                      `json:"scopes"`
-	AccessTokenLifetime  int                           `json:"access_token_lifetime"`
-	RefreshTokenLifetime int                           `json:"refresh_token_lifetime"`
-	SessionSecret        string                        `json:"session_secret"`
-	SessionID            string                        `json:"session_id"`
-	SessionLifetime      int                           `json:"session_lifetime"`
-	DisablePKCE          bool                          `json:"disable_pkce"`
-	StoreURI             string                        `json:"store_uri,omitempty"`
-	UserQuery            string                        `json:"user_query,omitempty"`
-	GroupsQuery          string                        `json:"groups_query,omitempty"`
-	DetailsQuery         string                        `json:"details_query,omitempty"`
-	Details              []string                      `json:"details,omitempty"`
+	Issuer               string                               `json:"issuer"`
+	Port                 int                                  `json:"port"`
+	Title                string                               `json:"title"`
+	Users                map[string]directory.AuthenticPerson `json:"users"`
+	Key                  string                               `json:"key"`
+	AdditionalKeys       []string                             `json:"additional_keys,omitempty"`
+	Clients              oauth2.Clients                       `json:"clients"`
+	Claims               oauth2.Claims                        `json:"claims"`
+	Scope                string                               `json:"scope"`
+	AccessTokenLifetime  int                                  `json:"access_token_lifetime"`
+	RefreshTokenLifetime int                                  `json:"refresh_token_lifetime"`
+	SessionSecret        string                               `json:"session_secret"`
+	SessionID            string                               `json:"session_id"`
+	SessionLifetime      int                                  `json:"session_lifetime"`
+	DisablePKCE          bool                                 `json:"disable_pkce"`
+	Directory            *directory.StoreSettings             `json:"directory,omitempty"`
+	DisablePeopleLookup  bool                                 `json:"disable_people_lookup,omitempty"`
+	PeopleLookupResponse map[string]any                       `json:"people_lookup_response,omitempty"`
 	rsaSigningKey        *rsa.PrivateKey
 	rsaSigningKeyID      string
 	rsaAdditionalKeys    map[string]*rsa.PublicKey
@@ -42,12 +40,12 @@ type Settings struct {
 
 func NewDefaultSettings() *Settings {
 	return &Settings{
-		Issuer: "http://localhost:1337/",
-		Port:   1337,
+		Issuer: "http://localhost:6080/",
+		Port:   6080,
 		Title:  "Auth Server",
-		Users: map[string]store.EmbeddedUser{
+		Users: map[string]directory.AuthenticPerson{
 			"user": {
-				User: store.User{
+				Person: directory.Person{
 					Details: map[string]any{
 						"first_name": "First Name",
 						"last_name":  "Last Name",
@@ -72,7 +70,7 @@ func NewDefaultSettings() *Settings {
 			"groups":    "{{ .Groups | join ',' }}",
 			"user_id":   "{{ .UserID | upper }}",
 		},
-		Scopes:          []string{"profile", "email", "offline_access"},
+		Scope:           "profile email",
 		SessionID:       "ASESSION",
 		SessionSecret:   stringutil.RandomBytesString(32),
 		SessionLifetime: 28_800,

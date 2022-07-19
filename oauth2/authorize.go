@@ -2,9 +2,9 @@ package oauth2
 
 import (
 	"fmt"
+	"github.com/cwkr/auth-server/directory"
 	"github.com/cwkr/auth-server/htmlutil"
 	"github.com/cwkr/auth-server/httputil"
-	"github.com/cwkr/auth-server/store"
 	"github.com/cwkr/auth-server/stringutil"
 	"log"
 	"net/http"
@@ -13,14 +13,28 @@ import (
 	"strings"
 )
 
-type authHandler struct {
-	tokenService  TokenService
-	authenticator store.Authenticator
-	clients       Clients
-	disablePKCE   bool
+func IntersectScope(availableScope, requestedScope string) string {
+	var results []string
+	var as, rs = strings.Fields(availableScope), strings.Fields(requestedScope)
+	for _, aw := range as {
+		for _, rw := range rs {
+			if strings.EqualFold(aw, rw) {
+				results = append(results, aw)
+			}
+		}
+	}
+	return strings.Join(results, " ")
 }
 
-func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+type authorizeHandler struct {
+	tokenService   TokenService
+	directoryStore directory.Store
+	clients        Clients
+	scope          string
+	disablePKCE    bool
+}
+
+func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
 	var (
@@ -28,15 +42,16 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		clientID        = strings.TrimSpace(r.FormValue("client_id"))
 		redirectURI     = strings.TrimSpace(r.FormValue("redirect_uri"))
 		state           = strings.TrimSpace(r.FormValue("state"))
+		scope           = strings.TrimSpace(r.FormValue("scope"))
 		challenge       = strings.TrimSpace(r.FormValue("code_challenge"))
 		challengeMethod = strings.TrimSpace(r.FormValue("code_challenge_method"))
 		user            User
 	)
 
-	if uid, active := a.authenticator.IsAuthenticated(r); active {
-		var usr, found = a.authenticator.Lookup(uid)
+	if uid, active := a.directoryStore.IsAuthenticated(r); active {
+		var usr, found = a.directoryStore.Lookup(uid)
 		if found {
-			user = User{UserID: uid, User: usr}
+			user = User{UserID: uid, Person: usr}
 		} else {
 			htmlutil.Error(w, "user not found", http.StatusInternalServerError)
 			return
@@ -65,7 +80,7 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch responseType {
 	case ResponseTypeToken:
-		var x, err = a.tokenService.GenerateAccessToken(user)
+		var x, err = a.tokenService.GenerateAccessToken(user, IntersectScope(a.scope, scope))
 		if err != nil {
 			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -84,7 +99,7 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			htmlutil.Error(w, "code_challenge and code_challenge_method=S256 required for PKCE", http.StatusInternalServerError)
 			return
 		}
-		var x, err = a.tokenService.GenerateAuthCode(user.UserID, clientID, challenge)
+		var x, err = a.tokenService.GenerateAuthCode(user.UserID, clientID, IntersectScope(a.scope, scope), challenge)
 		if err != nil {
 			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -98,11 +113,12 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func AuthHandler(tokenService TokenService, authenticator store.Authenticator, clients Clients, disablePKCE bool) http.Handler {
-	return &authHandler{
-		tokenService:  tokenService,
-		authenticator: authenticator,
-		clients:       clients,
-		disablePKCE:   disablePKCE,
+func AuthorizeHandler(tokenService TokenService, directoryStore directory.Store, clients Clients, scope string, disablePKCE bool) http.Handler {
+	return &authorizeHandler{
+		tokenService:   tokenService,
+		directoryStore: directoryStore,
+		clients:        clients,
+		scope:          scope,
+		disablePKCE:    disablePKCE,
 	}
 }

@@ -23,7 +23,7 @@ type DiscoveryDocument struct {
 
 type discoveryDocumentHandler struct {
 	issuer      string
-	scopes      []string
+	scope       string
 	disablePKCE bool
 }
 
@@ -43,12 +43,12 @@ func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	var baseURL = strings.TrimRight(d.issuer, "/")
 	var discoveryDocument = DiscoveryDocument{
 		Issuer:                            d.issuer,
-		AuthorizationEndpoint:             baseURL + "/auth",
+		AuthorizationEndpoint:             baseURL + "/authorize",
 		JwksURI:                           baseURL + "/jwks",
 		ResponseTypesSupported:            []string{"code", "token"},
 		GrantTypesSupported:               []string{"authorization_code", "implicit", "refresh_token"},
 		TokenEndpoint:                     baseURL + "/token",
-		ScopesSupported:                   d.scopes,
+		ScopesSupported:                   strings.Fields(d.scope),
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic", "client_secret_post"},
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256"},
 	}
@@ -63,10 +63,10 @@ func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func DiscoveryDocumentHandler(issuer string, scopes []string, disablePKCE bool) http.Handler {
+func DiscoveryDocumentHandler(issuer, scope string, disablePKCE bool) http.Handler {
 	return &discoveryDocumentHandler{
 		issuer:      issuer,
-		scopes:      scopes,
+		scope:       scope,
 		disablePKCE: disablePKCE,
 	}
 }

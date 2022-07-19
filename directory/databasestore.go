@@ -1,4 +1,4 @@
-package store
+package directory
 
 import (
 	"database/sql"
@@ -9,39 +9,35 @@ import (
 	"log"
 )
 
-type databaseAuthenticator struct {
-	embeddedAuthenticator
-	dbconn       *sql.DB
-	userQuery    string
-	groupsQuery  string
-	detailsQuery string
+type databaseStore struct {
+	embeddedStore
+	dbconn   *sql.DB
+	settings *StoreSettings
 }
 
-func NewDatabaseAuthenticator(sessionStore sessions.Store, users map[string]EmbeddedUser, sessionID string, sessionLifetime int, uri, userQuery, groupsQuery, detailsQuery string) (Authenticator, error) {
-	dbconn, err := sql.Open("postgres", uri)
+func NewDatabaseStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionID string, sessionLifetime int, settings *StoreSettings) (Store, error) {
+	dbconn, err := sql.Open("postgres", settings.URI)
 	if err != nil {
 		return nil, err
 	}
-	return &databaseAuthenticator{
-		embeddedAuthenticator: embeddedAuthenticator{
+	return &databaseStore{
+		embeddedStore: embeddedStore{
 			sessionStore:    sessionStore,
 			users:           users,
 			sessionID:       sessionID,
 			sessionLifetime: sessionLifetime,
 		},
-		dbconn:       dbconn,
-		userQuery:    userQuery,
-		groupsQuery:  groupsQuery,
-		detailsQuery: detailsQuery,
+		dbconn:   dbconn,
+		settings: settings,
 	}, nil
 }
 
-func (p databaseAuthenticator) QueryGroups(userID string) ([]string, error) {
+func (p databaseStore) QueryGroups(userID string) ([]string, error) {
 	var groups []string
 
-	log.Printf("SQL: %s; $1 = %s", p.groupsQuery, userID)
+	log.Printf("SQL: %s; $1 = %s", p.settings.GroupsQuery, userID)
 	// SELECT id FROM groups WHERE lower(user_id) = lower($1)
-	if rows, err := p.dbconn.Query(p.groupsQuery, userID); err == nil {
+	if rows, err := p.dbconn.Query(p.settings.GroupsQuery, userID); err == nil {
 
 		for rows.Next() {
 			var group string
@@ -58,12 +54,12 @@ func (p databaseAuthenticator) QueryGroups(userID string) ([]string, error) {
 	return groups, nil
 }
 
-func (p databaseAuthenticator) QueryDetails(userID string) (map[string]any, error) {
+func (p databaseStore) QueryDetails(userID string) (map[string]any, error) {
 	var details = make(map[string]any)
 
-	log.Printf("SQL: %s; $1 = %s", p.detailsQuery, userID)
+	log.Printf("SQL: %s; $1 = %s", p.settings.DetailsQuery, userID)
 	// SELECT first_name, last_name FROM users WHERE lower(id) = lower($1)
-	if rows, err := p.dbconn.Query(p.detailsQuery, userID); err == nil {
+	if rows, err := p.dbconn.Query(p.settings.DetailsQuery, userID); err == nil {
 		var cols, _ = rows.Columns()
 		if rows.Next() {
 			var columns = make([]any, len(cols))
@@ -88,16 +84,16 @@ func (p databaseAuthenticator) QueryDetails(userID string) (map[string]any, erro
 	return details, nil
 }
 
-func (p databaseAuthenticator) Authenticate(userID, password string) (string, bool) {
-	var user, found = p.embeddedAuthenticator.Authenticate(userID, password)
+func (p databaseStore) Authenticate(userID, password string) (string, bool) {
+	var realUserID, found = p.embeddedStore.Authenticate(userID, password)
 	if found {
-		return user, true
+		return realUserID, true
 	}
 
 	// SELECT id, password_hash FROM users WHERE lower(id) = lower($1)
-	log.Printf("SQL: %s; $1 = %s", p.userQuery, userID)
-	var row = p.dbconn.QueryRow(p.userQuery, userID)
-	var passwordHash, realUserID string
+	log.Printf("SQL: %s; $1 = %s", p.settings.CredentialsQuery, userID)
+	var row = p.dbconn.QueryRow(p.settings.CredentialsQuery, userID)
+	var passwordHash string
 	if err := row.Scan(&realUserID, &passwordHash); err == nil {
 		if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)); err != nil {
 			log.Printf("!!! Authenticate failed: %v", err)
@@ -111,10 +107,10 @@ func (p databaseAuthenticator) Authenticate(userID, password string) (string, bo
 	return "", false
 }
 
-func (p databaseAuthenticator) Lookup(userID string) (User, bool) {
-	var user, found = p.embeddedAuthenticator.Lookup(userID)
+func (p databaseStore) Lookup(userID string) (Person, bool) {
+	var person, found = p.embeddedStore.Lookup(userID)
 	if found {
-		return user, true
+		return person, true
 	}
 
 	var details map[string]any
@@ -123,12 +119,12 @@ func (p databaseAuthenticator) Lookup(userID string) (User, bool) {
 
 	if details, err = p.QueryDetails(userID); err != nil {
 		log.Printf("!!! Query for details failed: %v", err)
-		return User{}, false
+		return Person{}, false
 	}
 
 	if groups, err = p.QueryGroups(userID); err != nil {
 		log.Printf("!!! Query for groups failed: %v", err)
 	}
 
-	return User{Groups: groups, Details: details}, true
+	return Person{Groups: groups, Details: details}, true
 }
