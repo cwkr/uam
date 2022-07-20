@@ -3,19 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ .title }} - Login</title>
-    <link rel="stylesheet" href="style">
+    <link rel="stylesheet" href="/style">
 </head>
 <body>
-<h1>Login</h1>
-{{ with .message }}
-    <div style="color: crimson;">{{ . }}</div>
-{{ end }}
-<form method="post" action="{{ .query }}">
-    <label for="user_id">Username</label>
-    <input type="text" id="user_id" name="user_id"{{ with .userID }} value="{{ . }}"{{ end }}>
-    <label for="password_plain">Password</label>
-    <input type="password" id="password_plain" name="password_plain">
-    <button type="submit">Login</button>
+<form method="post" action="{{ .query }}" style="width: 240px; max-width: 100%; margin: 0 auto; display: flex; flex-direction: column;">
+    <input type="text" name="user_id" placeholder="Username"{{ with .userID }} value="{{ . }}"{{ end }}>
+    <input type="password" name="password_plain" placeholder="Password">
+    <button type="submit" style="margin: 1em auto;">Login</button>
 </form>
+{{ with .message }}
+    <div style="color: crimson; border-radius: 6px; background: var(--background); padding: 10px;">{{ . }}</div>
+{{ end }}
 </body>
 </html>
