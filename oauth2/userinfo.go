@@ -43,9 +43,8 @@ func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var person, found = u.directoryStore.Lookup(userID)
+	if person, err := u.directoryStore.Lookup(userID); err == nil {
 
-	if found {
 		var claims = map[string]any{
 			ClaimSubject: userID,
 		}
@@ -65,7 +64,7 @@ func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(bytes)
 	} else {
-		Error(w, ErrorInternal, "person not found", http.StatusInternalServerError)
+		Error(w, ErrorInternal, err.Error(), http.StatusInternalServerError)
 	}
 }
 

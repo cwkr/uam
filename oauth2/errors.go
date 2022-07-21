@@ -33,6 +33,7 @@ const (
 	ErrorUnsupportedGrantType = "unsupported_grant_type"
 
 	ErrorInternal = "internal_server_error"
+	ErrorNotFound = "not_found"
 )
 
 func Error(w http.ResponseWriter, error string, description string, code int) {

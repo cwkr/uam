@@ -2,4 +2,7 @@ package directory
 
 import "errors"
 
-var ErrAuthenticationFailed = errors.New("invalid username and/or password")
+var (
+	ErrAuthenticationFailed = errors.New("invalid username and/or password")
+	ErrPersonNotFound       = errors.New("person not found in store")
+)

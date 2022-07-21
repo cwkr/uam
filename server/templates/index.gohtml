@@ -119,6 +119,8 @@
             "client_id": sessionStorage.getItem('client_id'+urlParams.get("state")),
             {{- if .pkce }}
             "code_verifier": sessionStorage.getItem('code_verifier'+urlParams.get("state"))
+            {{- else }}
+            "client_secret": prompt("Client secret")
             {{- end }}
         });
         fetch("token", {method: "POST", body: postParams})

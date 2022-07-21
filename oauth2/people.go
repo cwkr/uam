@@ -27,9 +27,7 @@ func (i *peopleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var userID = mux.Vars(r)["user_id"]
-	var person, found = i.directoryStore.Lookup(userID)
-
-	if found {
+	if person, err := i.directoryStore.Lookup(userID); err == nil {
 		var responseData any = person
 
 		if len(i.responseProperties) > 0 {
@@ -50,7 +48,11 @@ func (i *peopleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(bytes)
 	} else {
-		Error(w, "not_found", "person not found", http.StatusNotFound)
+		if err == directory.ErrPersonNotFound {
+			Error(w, ErrorNotFound, err.Error(), http.StatusNotFound)
+		} else {
+			Error(w, ErrorInternal, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 

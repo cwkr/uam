@@ -1,7 +1,6 @@
 package directory
 
 import (
-	"errors"
 	"fmt"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gorilla/sessions"
@@ -12,12 +11,14 @@ import (
 
 type ldapStore struct {
 	embeddedStore
-	ldapURL      string
-	baseDN       string
-	bindUser     string
-	bindPassword string
-	attributes   []string
-	settings     *StoreSettings
+	ldapURL           string
+	baseDN            string
+	bindUser          string
+	bindPassword      string
+	detailsAttributes []string
+	userIDAttr        string
+	groupIDAttr       string
+	settings          *StoreSettings
 }
 
 func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionLifetime int, settings *StoreSettings) (Store, error) {
@@ -39,12 +40,14 @@ func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson,
 			sessionName:     sessionName,
 			sessionLifetime: sessionLifetime,
 		},
-		ldapURL:      ldapURL,
-		baseDN:       settings.Parameters["base_dn"],
-		bindUser:     bindUsername,
-		bindPassword: bindPassword,
-		attributes:   strings.Fields(settings.Parameters["attributes"]),
-		settings:     settings,
+		ldapURL:           ldapURL,
+		baseDN:            settings.Parameters["base_dn"].(string),
+		bindUser:          bindUsername,
+		bindPassword:      bindPassword,
+		detailsAttributes: settings.Parameters["details_attributes"].([]string),
+		userIDAttr:        settings.Parameters["user_id_attribute"].(string),
+		groupIDAttr:       settings.Parameters["group_id_attribute"].(string),
+		settings:          settings,
 	}, nil
 }
 
@@ -61,13 +64,16 @@ func (p ldapStore) queryGroups(conn *ldap.Conn, userDN string) ([]string, error)
 		0,
 		false,
 		fmt.Sprintf(p.settings.GroupsQuery, ldap.EscapeFilter(userDN)),
-		[]string{"dn", "cn"},
+		[]string{p.groupIDAttr},
 		nil,
 	)
 	if groupsResults, err := conn.Search(ldapGroupsSearch); err == nil {
 		for _, group := range groupsResults.Entries {
-			groups = append(groups, group.DN)
-			//groups = append(groups, group.GetAttributeValue("cn"))
+			if strings.EqualFold("DN", p.groupIDAttr) {
+				groups = append(groups, group.DN)
+			} else {
+				groups = append(groups, group.GetAttributeValue(p.groupIDAttr))
+			}
 		}
 	} else {
 		return nil, err
@@ -90,18 +96,18 @@ func (p ldapStore) queryDetails(conn *ldap.Conn, userID string) (string, map[str
 		0,
 		false,
 		fmt.Sprintf(p.settings.DetailsQuery, userID),
-		p.attributes,
+		p.detailsAttributes,
 		nil,
 	)
 	if results, err := conn.Search(ldapSearch); err == nil {
 		if len(results.Entries) == 1 {
 			var entry = results.Entries[0]
 			userDN = entry.DN
-			for _, key := range p.attributes {
+			for _, key := range p.detailsAttributes {
 				details[key] = entry.GetAttributeValue(key)
 			}
 		} else {
-			return "", nil, errors.New("not found")
+			return "", nil, ErrPersonNotFound
 		}
 	} else {
 		return "", nil, err
@@ -140,7 +146,7 @@ func (p ldapStore) Authenticate(userID, password string) (string, error) {
 		0,
 		false,
 		fmt.Sprintf(p.settings.CredentialsQuery, ldap.EscapeFilter(userID)),
-		[]string{"dn", "uid"},
+		[]string{"dn", p.userIDAttr},
 		nil,
 	)
 	var results *ldap.SearchResult
@@ -148,7 +154,7 @@ func (p ldapStore) Authenticate(userID, password string) (string, error) {
 		if len(results.Entries) == 1 {
 			var entry = results.Entries[0]
 			if err = conn.Bind(entry.DN, password); err == nil {
-				return entry.GetAttributeValue("uid"), nil
+				return entry.GetAttributeValue(p.userIDAttr), nil
 			} else {
 				log.Printf("!!! Authenticate failed: %v", err)
 			}
@@ -163,40 +169,40 @@ func (p ldapStore) Authenticate(userID, password string) (string, error) {
 	return "", ErrAuthenticationFailed
 }
 
-func (p ldapStore) Lookup(userID string) (Person, bool) {
-	var person, found = p.embeddedStore.Lookup(userID)
-	if found {
-		return person, true
+func (p ldapStore) Lookup(userID string) (Person, error) {
+	var person, err = p.embeddedStore.Lookup(userID)
+	if err == nil {
+		return person, nil
 	}
 
 	var details map[string]any
 	var groups []string
-	var err error
 	var conn *ldap.Conn
 	var userDN string
 
 	conn, err = ldap.DialURL(p.ldapURL)
 	if err != nil {
 		log.Printf("!!! ldap connection error: %v", err)
-		return Person{}, false
+		return Person{}, err
 	}
 	defer conn.Close()
 
 	if p.bindUser != "" && p.bindPassword != "" {
 		if err = conn.Bind(p.bindUser, p.bindPassword); err != nil {
 			log.Printf("!!! ldap bind error: %v", err)
-			return Person{}, false
+			return Person{}, err
 		}
 	}
 
 	if userDN, details, err = p.queryDetails(conn, userID); err != nil {
 		log.Printf("!!! Query for details failed: %v", err)
-		return Person{}, false
+		return Person{}, err
 	}
 
 	if groups, err = p.queryGroups(conn, userDN); err != nil {
 		log.Printf("!!! Query for groups failed: %v", err)
+		return Person{}, err
 	}
 
-	return Person{Groups: groups, Details: details}, true
+	return Person{Groups: groups, Details: details}, nil
 }

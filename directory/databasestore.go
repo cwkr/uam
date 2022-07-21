@@ -2,7 +2,6 @@ package directory
 
 import (
 	"database/sql"
-	"errors"
 	"github.com/gorilla/sessions"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
@@ -76,7 +75,7 @@ func (p databaseStore) QueryDetails(userID string) (map[string]any, error) {
 				return nil, err
 			}
 		} else {
-			return nil, errors.New("not found")
+			return nil, ErrPersonNotFound
 		}
 	} else {
 		return nil, err
@@ -110,24 +109,24 @@ func (p databaseStore) Authenticate(userID, password string) (string, error) {
 	return "", ErrAuthenticationFailed
 }
 
-func (p databaseStore) Lookup(userID string) (Person, bool) {
-	var person, found = p.embeddedStore.Lookup(userID)
-	if found {
-		return person, true
+func (p databaseStore) Lookup(userID string) (Person, error) {
+	var person, err = p.embeddedStore.Lookup(userID)
+	if err == nil {
+		return person, nil
 	}
 
 	var details map[string]any
 	var groups []string
-	var err error
 
 	if details, err = p.QueryDetails(userID); err != nil {
 		log.Printf("!!! Query for details failed: %v", err)
-		return Person{}, false
+		return Person{}, err
 	}
 
 	if groups, err = p.QueryGroups(userID); err != nil {
 		log.Printf("!!! Query for groups failed: %v", err)
+		return Person{}, err
 	}
 
-	return Person{Groups: groups, Details: details}, true
+	return Person{Groups: groups, Details: details}, nil
 }

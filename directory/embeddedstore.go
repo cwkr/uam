@@ -49,7 +49,7 @@ func (e embeddedStore) Authenticate(userID, password string) (string, error) {
 	return "", ErrAuthenticationFailed
 }
 
-func (e embeddedStore) IsAuthenticated(r *http.Request) (string, bool) {
+func (e embeddedStore) IsActiveSession(r *http.Request) (string, bool) {
 	var session, _ = e.sessionStore.Get(r, e.sessionName)
 
 	var uid, sct = session.Values["uid"], session.Values["sct"]
@@ -70,12 +70,12 @@ func (e embeddedStore) AuthenticationTime(r *http.Request) (time.Time, time.Time
 	return time.Time{}, time.Time{}
 }
 
-func (e embeddedStore) Lookup(userID string) (Person, bool) {
+func (e embeddedStore) Lookup(userID string) (Person, error) {
 	var authenticPerson, found = e.users[strings.ToLower(userID)]
 
 	if found {
-		return authenticPerson.Person, true
+		return authenticPerson.Person, nil
 	}
 
-	return Person{}, false
+	return Person{}, ErrPersonNotFound
 }

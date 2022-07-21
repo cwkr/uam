@@ -5,6 +5,7 @@ import (
 	"github.com/cwkr/auth-server/directory"
 	"github.com/cwkr/auth-server/oauth2/pkce"
 	"github.com/cwkr/auth-server/stringutil"
+	"golang.org/x/crypto/bcrypt"
 	"log"
 	"net/http"
 	"strings"
@@ -31,12 +32,20 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var clientID, _, basicAuth = r.BasicAuth()
+	var clientID, clientSecret, basicAuth = r.BasicAuth()
 	if !basicAuth {
 		clientID = strings.TrimSpace(r.PostFormValue("client_id"))
+		clientSecret = strings.TrimSpace(r.PostFormValue("client_secret"))
 	}
-	if _, clientExists := j.clients[clientID]; !clientExists {
-		Error(w, ErrorInvalidClient, "wrong client id", http.StatusUnauthorized)
+	if client, clientExists := j.clients[clientID]; clientExists {
+		if j.disablePKCE {
+			if err := bcrypt.CompareHashAndPassword([]byte(client.SecretHash), []byte(clientSecret)); err != nil {
+				Error(w, ErrorInvalidClient, "client authentication failed", http.StatusUnauthorized)
+				return
+			}
+		}
+	} else {
+		Error(w, ErrorInvalidClient, "client not found", http.StatusUnauthorized)
 		return
 	}
 	var (
@@ -65,8 +74,8 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error(w, ErrorInvalidGrant, "invalid auth code", http.StatusBadRequest)
 			return
 		}
-		var user, found = j.authenticator.Lookup(userID)
-		if !found {
+		var user, err = j.authenticator.Lookup(userID)
+		if err != nil {
 			Error(w, ErrorInternal, "user not found", http.StatusInternalServerError)
 			return
 		}
@@ -82,8 +91,8 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error(w, ErrorInvalidGrant, "invalid refresh_token", http.StatusBadRequest)
 			return
 		}
-		var user, found = j.authenticator.Lookup(userID)
-		if !found {
+		var user, err = j.authenticator.Lookup(userID)
+		if err != nil {
 			Error(w, ErrorInternal, "user not found", http.StatusInternalServerError)
 			return
 		}

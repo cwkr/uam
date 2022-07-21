@@ -7,7 +7,7 @@ import (
 
 type Store interface {
 	Authenticate(userID, password string) (string, error)
-	IsAuthenticated(r *http.Request) (string, bool)
+	IsActiveSession(r *http.Request) (string, bool)
 	AuthenticationTime(r *http.Request) (time.Time, time.Time)
-	Lookup(userID string) (Person, bool)
+	Lookup(userID string) (Person, error)
 }

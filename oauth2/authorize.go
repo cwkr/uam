@@ -48,12 +48,11 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		user            User
 	)
 
-	if uid, active := a.directoryStore.IsAuthenticated(r); active {
-		var usr, found = a.directoryStore.Lookup(uid)
-		if found {
+	if uid, active := a.directoryStore.IsActiveSession(r); active {
+		if usr, err := a.directoryStore.Lookup(uid); err == nil {
 			user = User{UserID: uid, Person: usr}
 		} else {
-			htmlutil.Error(w, "user not found", http.StatusInternalServerError)
+			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	} else {
