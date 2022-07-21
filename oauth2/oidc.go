@@ -15,6 +15,7 @@ type DiscoveryDocument struct {
 	ResponseTypesSupported                     []string `json:"response_types_supported"`
 	GrantTypesSupported                        []string `json:"grant_types_supported"`
 	TokenEndpoint                              string   `json:"token_endpoint"`
+	UserinfoEndpoint                           string   `json:"userinfo_endpoint"`
 	ScopesSupported                            []string `json:"scopes_supported"`
 	TokenEndpointAuthMethodsSupported          []string `json:"token_endpoint_auth_methods_supported"`
 	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported"`
@@ -48,6 +49,7 @@ func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		ResponseTypesSupported:            []string{"code", "token"},
 		GrantTypesSupported:               []string{"authorization_code", "implicit", "refresh_token"},
 		TokenEndpoint:                     baseURL + "/token",
+		UserinfoEndpoint:                  baseURL + "/userinfo",
 		ScopesSupported:                   strings.Fields(d.scope),
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic", "client_secret_post"},
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256"},

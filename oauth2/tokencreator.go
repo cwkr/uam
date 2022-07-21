@@ -2,15 +2,12 @@ package oauth2
 
 import (
 	"crypto/rsa"
-	"encoding/json"
 	"fmt"
 	"github.com/cwkr/auth-server/directory"
-	"github.com/cwkr/auth-server/oauth2/pkce"
 	"github.com/cwkr/auth-server/stringutil"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"log"
-	"net/http"
 	"strings"
 	"text/template"
 	"time"
@@ -43,18 +40,18 @@ type User struct {
 	UserID string `json:"user_id"`
 }
 
-type TokenService interface {
+type TokenCreator interface {
+	TokenVerifier
 	GenerateAccessToken(user User, scope string) (string, error)
 	GenerateAuthCode(userID, clientID, scope, challenge string) (string, error)
 	GenerateRefreshToken(userID, clientID, scope string) (string, error)
 	VerifyAuthCode(rawToken string) (userID, scope, challenge string, valid bool)
 	VerifyRefreshToken(rawToken string) (userID, scope string, valid bool)
 	AccessTokenLifetime() int64
-	RefreshTokenLifetime() int64
 	Issuer() string
 }
 
-type tokenService struct {
+type tokenCreator struct {
 	privateKey           *rsa.PrivateKey
 	signer               jose.Signer
 	issuer               string
@@ -64,15 +61,11 @@ type tokenService struct {
 	customClaims         Claims
 }
 
-func (t tokenService) AccessTokenLifetime() int64 {
+func (t tokenCreator) AccessTokenLifetime() int64 {
 	return t.accessTokenLifetime
 }
 
-func (t tokenService) RefreshTokenLifetime() int64 {
-	return t.refreshTokenLifetime
-}
-
-func (t tokenService) Issuer() string {
+func (t tokenCreator) Issuer() string {
 	return t.issuer
 }
 
@@ -119,7 +112,7 @@ func customizeMap(dst, src map[string]any, data any) error {
 	return nil
 }
 
-func (t tokenService) GenerateAccessToken(user User, scope string) (string, error) {
+func (t tokenCreator) GenerateAccessToken(user User, scope string) (string, error) {
 	var now = time.Now().Unix()
 
 	var claims = Claims{
@@ -141,7 +134,7 @@ func (t tokenService) GenerateAccessToken(user User, scope string) (string, erro
 	return jwt.Signed(t.signer).Claims(map[string]any(claims)).CompactSerialize()
 }
 
-func (t tokenService) GenerateAuthCode(userID, clientID, scope, challenge string) (string, error) {
+func (t tokenCreator) GenerateAuthCode(userID, clientID, scope, challenge string) (string, error) {
 	var now = time.Now().Unix()
 
 	var claims = Claims{
@@ -160,7 +153,7 @@ func (t tokenService) GenerateAuthCode(userID, clientID, scope, challenge string
 	return jwt.Signed(t.signer).Claims(map[string]any(claims)).CompactSerialize()
 }
 
-func (t tokenService) GenerateRefreshToken(userID, clientID, scope string) (string, error) {
+func (t tokenCreator) GenerateRefreshToken(userID, clientID, scope string) (string, error) {
 	var now = time.Now().Unix()
 
 	var claims = Claims{
@@ -178,10 +171,10 @@ func (t tokenService) GenerateRefreshToken(userID, clientID, scope string) (stri
 	return jwt.Signed(t.signer).Claims(map[string]any(claims)).CompactSerialize()
 }
 
-func (t tokenService) VerifyAuthCode(rawToken string) (string, string, string, bool) {
+func (t tokenCreator) VerifyAuthCode(rawToken string) (string, string, string, bool) {
 	var token, err = jwt.ParseSigned(rawToken)
 	if err != nil {
-		log.Printf("!!! %s\n", err)
+		log.Printf("!!! %s", err)
 		return "", "", "", false
 	}
 	var claims = jwt.Claims{}
@@ -193,7 +186,7 @@ func (t tokenService) VerifyAuthCode(rawToken string) (string, string, string, b
 		Challenge string `json:"challenge"`
 	}{}
 	if err := token.Claims(&t.privateKey.PublicKey, &claims, &tokenData); err != nil {
-		log.Printf("!!! %s\n", err)
+		log.Printf("!!! %s", err)
 		return "", "", "", false
 	}
 	if tokenData.Type != TokenTypeCode {
@@ -204,17 +197,17 @@ func (t tokenService) VerifyAuthCode(rawToken string) (string, string, string, b
 		Time:   time.Now(),
 	}, 0)
 	if err != nil {
-		log.Printf("!!! %s\n", err)
+		log.Printf("!!! %s", err)
 		return "", "", "", false
 	} else {
 		return tokenData.UserID, tokenData.Scope, tokenData.Challenge, true
 	}
 }
 
-func (t tokenService) VerifyRefreshToken(rawToken string) (string, string, bool) {
+func (t tokenCreator) VerifyRefreshToken(rawToken string) (string, string, bool) {
 	var token, err = jwt.ParseSigned(rawToken)
 	if err != nil {
-		log.Printf("!!! %s\n", err)
+		log.Printf("!!! %s", err)
 		return "", "", false
 	}
 	var claims = jwt.Claims{}
@@ -225,7 +218,7 @@ func (t tokenService) VerifyRefreshToken(rawToken string) (string, string, bool)
 		Type     string `json:"typ"`
 	}{}
 	if err := token.Claims(&t.privateKey.PublicKey, &claims, &tokenData); err != nil {
-		log.Printf("!!! %s\n", err)
+		log.Printf("!!! %s", err)
 		return "", "", false
 	}
 	if tokenData.Type != TokenTypeRefreshToken {
@@ -236,19 +229,19 @@ func (t tokenService) VerifyRefreshToken(rawToken string) (string, string, bool)
 		Time:   time.Now(),
 	}, 0)
 	if err != nil {
-		log.Printf("!!! %s\n", err)
+		log.Printf("!!! %s", err)
 		return "", "", false
 	} else {
 		return tokenData.UserID, tokenData.Scope, true
 	}
 }
 
-func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer, scope string, accessTokenLifetime, refreshTokenLifetime int64, customClaims Claims) (TokenService, error) {
+func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer, scope string, accessTokenLifetime, refreshTokenLifetime int64, customClaims Claims) (TokenCreator, error) {
 	var signer, err = jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}, (&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", keyID))
 	if err != nil {
 		return nil, err
 	}
-	return &tokenService{
+	return &tokenCreator{
 		privateKey:           privateKey,
 		signer:               signer,
 		issuer:               issuer,
@@ -257,113 +250,4 @@ func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer, scope string, ac
 		refreshTokenLifetime: refreshTokenLifetime,
 		customClaims:         customClaims,
 	}, nil
-}
-
-type tokenHandler struct {
-	tokenService  TokenService
-	authenticator directory.Store
-	clients       Clients
-	disablePKCE   bool
-}
-
-func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("%s %s", r.Method, r.URL)
-
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, POST")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Requested-With")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-	if r.Method == http.MethodOptions {
-		w.Header().Set("Allow", "OPTIONS, POST")
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	var clientID, _, basicAuth = r.BasicAuth()
-	if !basicAuth {
-		clientID = strings.TrimSpace(r.PostFormValue("client_id"))
-	}
-	if _, clientExists := j.clients[clientID]; !clientExists {
-		Error(w, ErrorInvalidClient, "wrong client id", http.StatusUnauthorized)
-		return
-	}
-	var (
-		grantType    = strings.ToLower(strings.TrimSpace(r.PostFormValue("grant_type")))
-		code         = strings.TrimSpace(r.PostFormValue("code"))
-		refreshToken = strings.TrimSpace(r.PostFormValue("refresh_token"))
-		codeVerifier = strings.TrimSpace(r.PostFormValue("code_verifier"))
-		accessToken  string
-	)
-
-	switch grantType {
-	case GrantTypeAuthorizationCode:
-		if j.disablePKCE && stringutil.IsAnyEmpty(clientID, code) {
-			Error(w, ErrorInvalidRequest, "client_id and code parameters are required", http.StatusBadRequest)
-			return
-		} else if !j.disablePKCE && stringutil.IsAnyEmpty(clientID, code, codeVerifier) {
-			Error(w, ErrorInvalidRequest, "client_id, code and code_verifier parameters are required", http.StatusBadRequest)
-			return
-		}
-		var userID, scope, challenge, valid = j.tokenService.VerifyAuthCode(code)
-		if !j.disablePKCE && !pkce.Verify(challenge, codeVerifier) {
-			Error(w, ErrorInvalidGrant, "invalid challenge", http.StatusBadRequest)
-			return
-		}
-		if !valid {
-			Error(w, ErrorInvalidGrant, "invalid auth code", http.StatusBadRequest)
-			return
-		}
-		var user, found = j.authenticator.Lookup(userID)
-		if !found {
-			Error(w, ErrorInternal, "user not found", http.StatusInternalServerError)
-			return
-		}
-		accessToken, _ = j.tokenService.GenerateAccessToken(User{Person: user, UserID: userID}, scope)
-		refreshToken, _ = j.tokenService.GenerateRefreshToken(userID, clientID, scope)
-	case GrantTypeRefreshToken:
-		if stringutil.IsAnyEmpty(clientID, refreshToken) {
-			Error(w, ErrorInvalidRequest, "client_id and refresh_token parameters are required", http.StatusBadRequest)
-			return
-		}
-		var userID, scope, valid = j.tokenService.VerifyRefreshToken(refreshToken)
-		if !valid {
-			Error(w, ErrorInvalidGrant, "invalid refresh_token", http.StatusBadRequest)
-			return
-		}
-		var user, found = j.authenticator.Lookup(userID)
-		if !found {
-			Error(w, ErrorInternal, "user not found", http.StatusInternalServerError)
-			return
-		}
-		accessToken, _ = j.tokenService.GenerateAccessToken(User{Person: user, UserID: userID}, scope)
-		refreshToken = ""
-	default:
-		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code' and 'refresh_token' are supported", http.StatusBadRequest)
-		return
-	}
-
-	var bytes, err = json.Marshal(TokenResponse{
-		AccessToken:  accessToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    j.tokenService.AccessTokenLifetime(),
-		RefreshToken: refreshToken,
-	})
-	if err != nil {
-		Error(w, ErrorInternal, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
-	w.Header().Set("Pragma", "no-cache")
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(bytes)
-}
-
-func TokenHandler(tokenService TokenService, authenticator directory.Store, clients Clients, disablePKCE bool) http.Handler {
-	return &tokenHandler{
-		tokenService:  tokenService,
-		clients:       clients,
-		disablePKCE:   disablePKCE,
-		authenticator: authenticator,
-	}
 }

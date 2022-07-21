@@ -2,7 +2,6 @@ package oauth2
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 )
 
@@ -41,10 +40,6 @@ func Error(w http.ResponseWriter, error string, description string, code int) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
-
-	if code == http.StatusUnauthorized {
-		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"auth\", error=\"%s\", error_description=\"%s\"", error, description))
-	}
 
 	w.WriteHeader(code)
 	var bytes, _ = json.Marshal(ErrorResponse{error, description})

@@ -18,7 +18,7 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
 	var (
-		session, _  = l.sessionStore.Get(r, l.settings.SessionID)
+		session, _  = l.sessionStore.Get(r, l.settings.SessionName)
 		clientID    = strings.TrimSpace(r.FormValue("client_id"))
 		redirectURI = strings.TrimSpace(r.FormValue("redirect_uri"))
 	)

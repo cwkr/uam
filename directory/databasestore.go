@@ -15,7 +15,7 @@ type databaseStore struct {
 	settings *StoreSettings
 }
 
-func NewDatabaseStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionID string, sessionLifetime int, settings *StoreSettings) (Store, error) {
+func NewDatabaseStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionLifetime int, settings *StoreSettings) (Store, error) {
 	dbconn, err := sql.Open("postgres", settings.URI)
 	if err != nil {
 		return nil, err
@@ -24,7 +24,7 @@ func NewDatabaseStore(sessionStore sessions.Store, users map[string]AuthenticPer
 		embeddedStore: embeddedStore{
 			sessionStore:    sessionStore,
 			users:           users,
-			sessionID:       sessionID,
+			sessionName:     sessionName,
 			sessionLifetime: sessionLifetime,
 		},
 		dbconn:   dbconn,
@@ -35,7 +35,7 @@ func NewDatabaseStore(sessionStore sessions.Store, users map[string]AuthenticPer
 func (p databaseStore) QueryGroups(userID string) ([]string, error) {
 	var groups []string
 
-	log.Printf("SQL: %s; $1 = %s", p.settings.GroupsQuery, userID)
+	log.Printf("SQL: %s; -- %s", p.settings.GroupsQuery, userID)
 	// SELECT id FROM groups WHERE lower(user_id) = lower($1)
 	if rows, err := p.dbconn.Query(p.settings.GroupsQuery, userID); err == nil {
 
@@ -57,7 +57,7 @@ func (p databaseStore) QueryGroups(userID string) ([]string, error) {
 func (p databaseStore) QueryDetails(userID string) (map[string]any, error) {
 	var details = make(map[string]any)
 
-	log.Printf("SQL: %s; $1 = %s", p.settings.DetailsQuery, userID)
+	log.Printf("SQL: %s; -- %s", p.settings.DetailsQuery, userID)
 	// SELECT first_name, last_name FROM users WHERE lower(id) = lower($1)
 	if rows, err := p.dbconn.Query(p.settings.DetailsQuery, userID); err == nil {
 		var cols, _ = rows.Columns()
@@ -84,27 +84,30 @@ func (p databaseStore) QueryDetails(userID string) (map[string]any, error) {
 	return details, nil
 }
 
-func (p databaseStore) Authenticate(userID, password string) (string, bool) {
-	var realUserID, found = p.embeddedStore.Authenticate(userID, password)
-	if found {
-		return realUserID, true
+func (p databaseStore) Authenticate(userID, password string) (string, error) {
+	var realUserID, err = p.embeddedStore.Authenticate(userID, password)
+	if err == nil {
+		return realUserID, nil
 	}
 
 	// SELECT id, password_hash FROM users WHERE lower(id) = lower($1)
-	log.Printf("SQL: %s; $1 = %s", p.settings.CredentialsQuery, userID)
+	log.Printf("SQL: %s; -- %s", p.settings.CredentialsQuery, userID)
 	var row = p.dbconn.QueryRow(p.settings.CredentialsQuery, userID)
 	var passwordHash string
 	if err := row.Scan(&realUserID, &passwordHash); err == nil {
 		if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)); err != nil {
 			log.Printf("!!! Authenticate failed: %v", err)
 		} else {
-			return realUserID, true
+			return realUserID, nil
 		}
 	} else {
-		log.Printf("!!! Query for user failed: %v", err)
+		log.Printf("!!! Query for person failed: %v", err)
+		if err != sql.ErrNoRows {
+			return "", err
+		}
 	}
 
-	return "", false
+	return "", ErrAuthenticationFailed
 }
 
 func (p databaseStore) Lookup(userID string) (Person, bool) {

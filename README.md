@@ -45,7 +45,7 @@ It is possible to use a PostgreSQL database or LDAP as backend.
   "access_token_lifetime": 3600,
   "refresh_token_lifetime": 28800,
   "session_secret": "eoxxj3S-KsA7rlVHYfhOy22rW7abWDi5lS7WoCZ9hf4",
-  "session_id": "ASESSION",
+  "session_name": "ASESSION",
   "session_lifetime": 28800,
   "disable_pkce": false,
   "directory": {

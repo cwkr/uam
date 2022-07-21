@@ -20,7 +20,7 @@ type ldapStore struct {
 	settings     *StoreSettings
 }
 
-func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionID string, sessionLifetime int, settings *StoreSettings) (Store, error) {
+func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionLifetime int, settings *StoreSettings) (Store, error) {
 	var ldapURL, bindUsername, bindPassword string
 	if url, err := url.Parse(settings.URI); err == nil {
 		if url.User != nil {
@@ -36,7 +36,7 @@ func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson,
 		embeddedStore: embeddedStore{
 			sessionStore:    sessionStore,
 			users:           users,
-			sessionID:       sessionID,
+			sessionName:     sessionName,
 			sessionLifetime: sessionLifetime,
 		},
 		ldapURL:      ldapURL,
@@ -110,23 +110,23 @@ func (p ldapStore) queryDetails(conn *ldap.Conn, userID string) (string, map[str
 	return userDN, details, nil
 }
 
-func (p ldapStore) Authenticate(userID, password string) (string, bool) {
+func (p ldapStore) Authenticate(userID, password string) (string, error) {
 	var realUserID, found = p.embeddedStore.Authenticate(userID, password)
-	if found {
-		return realUserID, true
+	if found == nil {
+		return realUserID, nil
 	}
 
 	var conn, err = ldap.DialURL(p.ldapURL)
 	if err != nil {
 		log.Printf("!!! ldap connection error: %v", err)
-		return "", false
+		return "", err
 	}
 	defer conn.Close()
 
 	if p.bindUser != "" && p.bindPassword != "" {
 		if err = conn.Bind(p.bindUser, p.bindPassword); err != nil {
 			log.Printf("!!! ldap bind error: %v", err)
-			return "", false
+			return "", err
 		}
 	}
 
@@ -148,19 +148,19 @@ func (p ldapStore) Authenticate(userID, password string) (string, bool) {
 		if len(results.Entries) == 1 {
 			var entry = results.Entries[0]
 			if err = conn.Bind(entry.DN, password); err == nil {
-				return entry.GetAttributeValue("uid"), true
+				return entry.GetAttributeValue("uid"), nil
 			} else {
 				log.Printf("!!! Authenticate failed: %v", err)
 			}
 		} else {
-			log.Println("!!! Person not found: " + userID)
-			return "", false
+			log.Printf("!!! Person not found: %s", userID)
 		}
 	} else {
-		log.Println(err)
+		log.Printf("!!! Query for person failed: %v", err)
+		return "", err
 	}
 
-	return "", false
+	return "", ErrAuthenticationFailed
 }
 
 func (p ldapStore) Lookup(userID string) (Person, bool) {

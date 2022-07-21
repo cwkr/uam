@@ -31,7 +31,7 @@ type loginHandler struct {
 func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 	var message string
-	var session, _ = j.sessionStore.Get(r, j.settings.SessionID)
+	var session, _ = j.sessionStore.Get(r, j.settings.SessionName)
 	var t, _ = template.New("login").Parse(loginTpl)
 
 	var userID, password string
@@ -40,9 +40,9 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		userID = r.PostFormValue(FieldUserID)
 		password = r.PostFormValue(FieldPasswordPlain)
 		if stringutil.IsAnyEmpty(userID, password) {
-			message = "Username and password must not be empty"
+			message = "username and password must not be empty"
 		} else {
-			if realUserID, authenticated := j.authenticator.Authenticate(userID, password); authenticated {
+			if realUserID, err := j.authenticator.Authenticate(userID, password); err == nil {
 				session.Values["uid"] = realUserID
 				var now = time.Now()
 				session.Values["sct"] = now.Unix()
@@ -54,7 +54,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				httputil.RedirectQuery(w, r, strings.TrimRight(j.settings.Issuer, "/")+"/authorize", r.URL.Query())
 				return
 			} else {
-				message = "Invalid username and/or password"
+				message = err.Error()
 			}
 		}
 	}

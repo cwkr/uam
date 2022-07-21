@@ -27,7 +27,7 @@ type Settings struct {
 	AccessTokenLifetime  int                                  `json:"access_token_lifetime"`
 	RefreshTokenLifetime int                                  `json:"refresh_token_lifetime"`
 	SessionSecret        string                               `json:"session_secret"`
-	SessionID            string                               `json:"session_id"`
+	SessionName          string                               `json:"session_name"`
 	SessionLifetime      int                                  `json:"session_lifetime"`
 	DisablePKCE          bool                                 `json:"disable_pkce"`
 	Directory            *directory.StoreSettings             `json:"directory,omitempty"`
@@ -71,7 +71,7 @@ func NewDefaultSettings() *Settings {
 			"user_id":   "{{ .UserID | upper }}",
 		},
 		Scope:           "profile email",
-		SessionID:       "ASESSION",
+		SessionName:     "ASESSION",
 		SessionSecret:   stringutil.RandomBytesString(32),
 		SessionLifetime: 28_800,
 	}

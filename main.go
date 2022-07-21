@@ -19,7 +19,7 @@ import (
 
 var (
 	settings     *server.Settings
-	tokenService oauth2.TokenService
+	tokenService oauth2.TokenCreator
 )
 
 func main() {
@@ -78,18 +78,18 @@ func main() {
 	var directoryStore directory.Store
 	if settings.Directory != nil {
 		if strings.HasPrefix(settings.Directory.URI, "postgresql:") {
-			if directoryStore, err = directory.NewDatabaseStore(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime, settings.Directory); err != nil {
+			if directoryStore, err = directory.NewDatabaseStore(sessionStore, settings.Users, settings.SessionName, settings.SessionLifetime, settings.Directory); err != nil {
 				panic(err)
 			}
 		} else if strings.HasPrefix(settings.Directory.URI, "ldap:") || strings.HasPrefix(settings.Directory.URI, "ldaps:") {
-			if directoryStore, err = directory.NewLdapStore(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime, settings.Directory); err != nil {
+			if directoryStore, err = directory.NewLdapStore(sessionStore, settings.Users, settings.SessionName, settings.SessionLifetime, settings.Directory); err != nil {
 				panic(err)
 			}
 		} else {
 			panic(errors.New("unsupported or empty store uri: " + settings.Directory.URI))
 		}
 	} else {
-		directoryStore = directory.NewEmbeddedStore(sessionStore, settings.Users, settings.SessionID, settings.SessionLifetime)
+		directoryStore = directory.NewEmbeddedStore(sessionStore, settings.Users, settings.SessionName, settings.SessionLifetime)
 	}
 
 	var router = mux.NewRouter()
@@ -109,6 +109,8 @@ func main() {
 		Methods(http.MethodGet, http.MethodPost)
 	router.Handle("/logout", server.LogoutHandler(settings, sessionStore))
 	router.Handle("/.well-known/openid-configuration", oauth2.DiscoveryDocumentHandler(settings.Issuer, settings.Scope, settings.DisablePKCE)).
+		Methods(http.MethodGet, http.MethodOptions)
+	router.Handle("/userinfo", oauth2.UserInfoHandler(directoryStore, tokenService, settings.Claims, settings.SessionName)).
 		Methods(http.MethodGet, http.MethodOptions)
 	if !settings.DisablePeopleLookup {
 		router.Handle("/people/{user_id}", oauth2.PeopleHandler(directoryStore, settings.PeopleLookupResponse)).

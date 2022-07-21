@@ -8,7 +8,7 @@ import (
 
 func Error(w http.ResponseWriter, error string, code int) {
 	var statusText = http.StatusText(code)
-	log.Printf("!!! %d %s - %s\n", code, statusText, error)
+	log.Printf("!!! %d %s - %s", code, statusText, error)
 	w.Header().Set("Content-Type", "text/html;charset=UTF-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(code)

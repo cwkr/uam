@@ -27,7 +27,7 @@ func IntersectScope(availableScope, requestedScope string) string {
 }
 
 type authorizeHandler struct {
-	tokenService   TokenService
+	tokenService   TokenCreator
 	directoryStore directory.Store
 	clients        Clients
 	scope          string
@@ -113,7 +113,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func AuthorizeHandler(tokenService TokenService, directoryStore directory.Store, clients Clients, scope string, disablePKCE bool) http.Handler {
+func AuthorizeHandler(tokenService TokenCreator, directoryStore directory.Store, clients Clients, scope string, disablePKCE bool) http.Handler {
 	return &authorizeHandler{
 		tokenService:   tokenService,
 		directoryStore: directoryStore,
