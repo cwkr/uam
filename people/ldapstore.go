@@ -25,7 +25,7 @@ type ldapStore struct {
 	settings       *StoreSettings
 }
 
-func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionLifetime int, settings *StoreSettings) (Store, error) {
+func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionTTL int64, settings *StoreSettings) (Store, error) {
 	var ldapURL, bindUsername, bindPassword string
 	if url, err := url.Parse(settings.URI); err == nil {
 		if url.User != nil {
@@ -46,10 +46,10 @@ func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson,
 
 	return &ldapStore{
 		embeddedStore: embeddedStore{
-			sessionStore:    sessionStore,
-			users:           users,
-			sessionName:     sessionName,
-			sessionLifetime: sessionLifetime,
+			sessionStore: sessionStore,
+			users:        users,
+			sessionName:  sessionName,
+			sessionTTL:   sessionTTL,
 		},
 		ldapURL:        ldapURL,
 		baseDN:         settings.Parameters["base_dn"],

@@ -10,7 +10,7 @@
     <div style="color: salmon; text-align: center; margin-bottom: 2em;">{{ . }}</div>
 {{ end }}
 <form method="post" action="{{ .query }}" style="width: 240px; max-width: 100%; margin: 0 auto; display: flex; flex-direction: column;">
-    <input type="text" name="user_id" placeholder="Username"{{ with .userID }} value="{{ . }}"{{ end }}>
+    <input type="text" name="user_id" placeholder="Username"{{ with .userID }} value="{{ . }}" {{ end }}autofocus>
     <input type="password" name="password_plain" placeholder="Password">
     <button type="submit" style="margin: 1em auto;">Login</button>
 </form>

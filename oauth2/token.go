@@ -1,6 +1,8 @@
 package oauth2
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"github.com/cwkr/auth-server/oauth2/pkce"
 	"github.com/cwkr/auth-server/people"
@@ -54,6 +56,7 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		refreshToken = strings.TrimSpace(r.PostFormValue("refresh_token"))
 		codeVerifier = strings.TrimSpace(r.PostFormValue("code_verifier"))
 		accessToken  string
+		idToken      string
 	)
 
 	switch grantType {
@@ -79,8 +82,13 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error(w, ErrorInternal, "person not found", http.StatusInternalServerError)
 			return
 		}
-		accessToken, _ = j.tokenService.GenerateAccessToken(User{Person: *person, UserID: userID}, scope)
+		var user = User{Person: *person, UserID: userID}
+		accessToken, _ = j.tokenService.GenerateAccessToken(user, scope)
 		refreshToken, _ = j.tokenService.GenerateRefreshToken(userID, clientID, scope)
+		if strings.Contains(scope, "openid") {
+			var hash = sha256.Sum256([]byte(accessToken))
+			idToken, _ = j.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]))
+		}
 	case GrantTypeRefreshToken:
 		if stringutil.IsAnyEmpty(clientID, refreshToken) {
 			Error(w, ErrorInvalidRequest, "client_id and refresh_token parameters are required", http.StatusBadRequest)
@@ -96,7 +104,8 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error(w, ErrorInternal, "person not found", http.StatusInternalServerError)
 			return
 		}
-		accessToken, _ = j.tokenService.GenerateAccessToken(User{Person: *person, UserID: userID}, scope)
+		var user = User{Person: *person, UserID: userID}
+		accessToken, _ = j.tokenService.GenerateAccessToken(user, scope)
 		refreshToken = ""
 	default:
 		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code' and 'refresh_token' are supported", http.StatusBadRequest)
@@ -106,8 +115,9 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var bytes, err = json.Marshal(TokenResponse{
 		AccessToken:  accessToken,
 		TokenType:    "Bearer",
-		ExpiresIn:    j.tokenService.AccessTokenLifetime(),
+		ExpiresIn:    j.tokenService.AccessTokenTTL(),
 		RefreshToken: refreshToken,
+		IDToken:      idToken,
 	})
 	if err != nil {
 		Error(w, ErrorInternal, err.Error(), http.StatusInternalServerError)

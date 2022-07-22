@@ -2,28 +2,16 @@ package oauth2
 
 import (
 	"crypto/rsa"
-	"fmt"
 	"github.com/cwkr/auth-server/people"
 	"github.com/cwkr/auth-server/stringutil"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"log"
 	"strings"
-	"text/template"
 	"time"
 )
 
 const (
-	ClaimClientID       = "client_id"
-	ClaimExpirationTime = "exp"
-	ClaimIssuer         = "iss"
-	ClaimIssuedAtTime   = "iat"
-	ClaimNotBeforeTime  = "nbf"
-	ClaimUserID         = "user_id"
-	ClaimScope          = "scope"
-	ClaimSubject        = "sub"
-	ClaimType           = "typ"
-
 	GrantTypeAuthorizationCode = "authorization_code"
 	GrantTypeRefreshToken      = "refresh_token"
 
@@ -33,8 +21,6 @@ const (
 	ResponseTypeToken     = "token"
 )
 
-type Claims map[string]any
-
 type User struct {
 	people.Person
 	UserID string `json:"user_id"`
@@ -43,101 +29,80 @@ type User struct {
 type TokenCreator interface {
 	TokenVerifier
 	GenerateAccessToken(user User, scope string) (string, error)
+	GenerateIDToken(user User, clientID, scope, accessTokenHash string) (string, error)
 	GenerateAuthCode(userID, clientID, scope, challenge string) (string, error)
 	GenerateRefreshToken(userID, clientID, scope string) (string, error)
 	VerifyAuthCode(rawToken string) (userID, scope, challenge string, valid bool)
 	VerifyRefreshToken(rawToken string) (userID, scope string, valid bool)
-	AccessTokenLifetime() int64
+	AccessTokenTTL() int64
 	Issuer() string
 }
 
 type tokenCreator struct {
-	privateKey           *rsa.PrivateKey
-	signer               jose.Signer
-	issuer               string
-	scope                string
-	accessTokenLifetime  int64
-	refreshTokenLifetime int64
-	customClaims         Claims
+	privateKey             *rsa.PrivateKey
+	signer                 jose.Signer
+	issuer                 string
+	scope                  string
+	accessTokenTTL         int64
+	refreshTokenTTL        int64
+	idTokenTTL             int64
+	accessTokenExtraClaims map[string]string
+	idTokenExtraClaims     map[string]string
 }
 
-func (t tokenCreator) AccessTokenLifetime() int64 {
-	return t.accessTokenLifetime
+func (t tokenCreator) AccessTokenTTL() int64 {
+	return t.accessTokenTTL
 }
 
 func (t tokenCreator) Issuer() string {
 	return t.issuer
 }
 
-var customFuncs = template.FuncMap{
-	"join": func(sep any, elems []string) string {
-		switch sep.(type) {
-		case string:
-			return strings.Join(elems, sep.(string))
-		case int:
-			return strings.Join(elems, string(rune(sep.(int))))
-		}
-		return strings.Join(elems, fmt.Sprint(sep))
-	},
-	"upper": strings.ToUpper,
-	"lower": strings.ToLower,
-}
-
-func customizeMap(dst, src map[string]any, data any) error {
-	for key, value := range src {
-		switch value.(type) {
-		case string:
-			var t, err = template.New(key).Funcs(customFuncs).Parse(value.(string))
-			if err != nil {
-				return err
-			}
-			var sb strings.Builder
-			err = t.ExecuteTemplate(&sb, key, data)
-			if err != nil {
-				return err
-			}
-			var customValue = sb.String()
-			if customValue != "" && customValue != "<no value>" {
-				dst[key] = customValue
-			}
-		case map[string]any:
-			var customValue = map[string]any{}
-			if err := customizeMap(customValue, value.(map[string]any), data); err != nil {
-				return err
-			}
-		default:
-			dst[key] = value
-		}
-	}
-	return nil
-}
-
 func (t tokenCreator) GenerateAccessToken(user User, scope string) (string, error) {
 	var now = time.Now().Unix()
 
-	var claims = Claims{
+	var claims = map[string]any{
 		ClaimIssuer:         t.issuer,
 		ClaimSubject:        user.UserID,
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
-		ClaimExpirationTime: now + t.accessTokenLifetime,
+		ClaimExpirationTime: now + t.accessTokenTTL,
 		ClaimScope:          scope,
 	}
 
-	if err := customizeMap(claims, t.customClaims, struct {
-		User
-		Scope string
-	}{user, scope}); err != nil {
-		return "", err
+	AddExtraClaims(claims, t.accessTokenExtraClaims, user)
+
+	return jwt.Signed(t.signer).Claims(claims).CompactSerialize()
+}
+
+func (t tokenCreator) GenerateIDToken(user User, clientID, scope, accessTokenHash string) (string, error) {
+	var now = time.Now().Unix()
+
+	var claims = map[string]any{
+		ClaimIssuer:          t.issuer,
+		ClaimSubject:         user.UserID,
+		ClaimIssuedAtTime:    now,
+		ClaimNotBeforeTime:   now,
+		ClaimExpirationTime:  now + t.idTokenTTL,
+		ClaimAudience:        clientID,
+		ClaimAccessTokenHash: accessTokenHash,
 	}
 
-	return jwt.Signed(t.signer).Claims(map[string]any(claims)).CompactSerialize()
+	if strings.Contains(scope, "profile") {
+		AddProfileClaims(claims, user)
+	}
+	if strings.Contains(scope, "email") {
+		AddEmailClaims(claims, user)
+	}
+	AddExtraClaims(claims, t.idTokenExtraClaims, user)
+
+	return jwt.Signed(t.signer).Claims(claims).CompactSerialize()
 }
 
 func (t tokenCreator) GenerateAuthCode(userID, clientID, scope, challenge string) (string, error) {
 	var now = time.Now().Unix()
 
-	var claims = Claims{
+	var claims = map[string]any{
 		ClaimIssuer:         t.issuer,
 		ClaimSubject:        stringutil.RandomBytesString(16),
 		ClaimType:           TokenTypeCode,
@@ -150,13 +115,13 @@ func (t tokenCreator) GenerateAuthCode(userID, clientID, scope, challenge string
 		"challenge":         challenge,
 	}
 
-	return jwt.Signed(t.signer).Claims(map[string]any(claims)).CompactSerialize()
+	return jwt.Signed(t.signer).Claims(claims).CompactSerialize()
 }
 
 func (t tokenCreator) GenerateRefreshToken(userID, clientID, scope string) (string, error) {
 	var now = time.Now().Unix()
 
-	var claims = Claims{
+	var claims = map[string]any{
 		ClaimIssuer:         t.issuer,
 		ClaimSubject:        stringutil.RandomBytesString(16),
 		ClaimType:           TokenTypeRefreshToken,
@@ -164,11 +129,11 @@ func (t tokenCreator) GenerateRefreshToken(userID, clientID, scope string) (stri
 		ClaimUserID:         userID,
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
-		ClaimExpirationTime: now + t.refreshTokenLifetime,
+		ClaimExpirationTime: now + t.refreshTokenTTL,
 		ClaimScope:          scope,
 	}
 
-	return jwt.Signed(t.signer).Claims(map[string]any(claims)).CompactSerialize()
+	return jwt.Signed(t.signer).Claims(claims).CompactSerialize()
 }
 
 func (t tokenCreator) VerifyAuthCode(rawToken string) (string, string, string, bool) {
@@ -236,18 +201,22 @@ func (t tokenCreator) VerifyRefreshToken(rawToken string) (string, string, bool)
 	}
 }
 
-func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer, scope string, accessTokenLifetime, refreshTokenLifetime int64, customClaims Claims) (TokenCreator, error) {
+func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer, scope string,
+	accessTokenTTL, refreshTokenTTL, idTokenTTL int64,
+	accessTokenExtraClaims, idTokenExtraClaims map[string]string) (TokenCreator, error) {
 	var signer, err = jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}, (&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", keyID))
 	if err != nil {
 		return nil, err
 	}
 	return &tokenCreator{
-		privateKey:           privateKey,
-		signer:               signer,
-		issuer:               issuer,
-		scope:                scope,
-		accessTokenLifetime:  accessTokenLifetime,
-		refreshTokenLifetime: refreshTokenLifetime,
-		customClaims:         customClaims,
+		privateKey:             privateKey,
+		signer:                 signer,
+		issuer:                 issuer,
+		scope:                  scope,
+		accessTokenTTL:         accessTokenTTL,
+		refreshTokenTTL:        refreshTokenTTL,
+		idTokenTTL:             idTokenTTL,
+		accessTokenExtraClaims: accessTokenExtraClaims,
+		idTokenExtraClaims:     idTokenExtraClaims,
 	}, nil
 }

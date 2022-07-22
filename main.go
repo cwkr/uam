@@ -63,9 +63,11 @@ func main() {
 		settings.KeyID(),
 		settings.Issuer,
 		settings.Scope,
-		int64(settings.AccessTokenLifetime),
-		int64(settings.RefreshTokenLifetime),
-		settings.Claims,
+		int64(settings.AccessTokenTTL),
+		int64(settings.RefreshTokenTTL),
+		int64(settings.IDTokenTTL),
+		settings.AccessTokenExtraClaims,
+		settings.IDTokenExtraClaims,
 	)
 	if err != nil {
 		panic(err)
@@ -78,18 +80,18 @@ func main() {
 	var peopleStore people.Store
 	if settings.PeopleStore != nil {
 		if strings.HasPrefix(settings.PeopleStore.URI, "postgresql:") {
-			if peopleStore, err = people.NewDatabaseStore(sessionStore, settings.Users, settings.SessionName, settings.SessionLifetime, settings.PeopleStore); err != nil {
+			if peopleStore, err = people.NewDatabaseStore(sessionStore, settings.Users, settings.SessionName, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
 				panic(err)
 			}
 		} else if strings.HasPrefix(settings.PeopleStore.URI, "ldap:") || strings.HasPrefix(settings.PeopleStore.URI, "ldaps:") {
-			if peopleStore, err = people.NewLdapStore(sessionStore, settings.Users, settings.SessionName, settings.SessionLifetime, settings.PeopleStore); err != nil {
+			if peopleStore, err = people.NewLdapStore(sessionStore, settings.Users, settings.SessionName, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
 				panic(err)
 			}
 		} else {
 			panic(errors.New("unsupported or empty store uri: " + settings.PeopleStore.URI))
 		}
 	} else {
-		peopleStore = people.NewEmbeddedStore(sessionStore, settings.Users, settings.SessionName, settings.SessionLifetime)
+		peopleStore = people.NewEmbeddedStore(sessionStore, settings.Users, settings.SessionName, int64(settings.SessionTTL))
 	}
 
 	var router = mux.NewRouter()
@@ -110,7 +112,7 @@ func main() {
 	router.Handle("/logout", server.LogoutHandler(settings, sessionStore))
 	router.Handle("/.well-known/openid-configuration", oauth2.DiscoveryDocumentHandler(settings.Issuer, settings.Scope, settings.DisablePKCE)).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle("/userinfo", oauth2.UserInfoHandler(peopleStore, tokenService, settings.Claims, settings.SessionName)).
+	router.Handle("/userinfo", oauth2.UserInfoHandler(peopleStore, tokenService, settings.AccessTokenExtraClaims, settings.SessionName)).
 		Methods(http.MethodGet, http.MethodOptions)
 	if !settings.DisablePeopleAPI {
 		router.Handle("/people/{user_id}", server.PeopleAPIHandler(peopleStore)).

@@ -90,7 +90,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		httputil.RedirectFragment(w, r, redirectURI, url.Values{
 			"access_token": {x},
 			"token_type":   {"Bearer"},
-			"expires_in":   {fmt.Sprint(a.tokenService.AccessTokenLifetime())},
+			"expires_in":   {fmt.Sprint(a.tokenService.AccessTokenTTL())},
 			"state":        {state},
 		})
 	case ResponseTypeCode:

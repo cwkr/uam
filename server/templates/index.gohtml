@@ -67,15 +67,13 @@
     </select>
     <button type="submit">Get token</button>
 </form>
-<pre id="token_output" style="white-space: pre-wrap; word-wrap: break-word; min-height: 16em;">
-</pre>
+<pre style="white-space: pre-wrap; word-wrap: break-word;" title="access_token"><code id="access_token_output"></code></pre>
+<pre style="white-space: pre-wrap; word-wrap: break-word;" title="id_token"><code id="id_token_output"></code></pre>
 <h2>Public Key</h2>
 <div>
     <a href="{{ .issuer }}/jwks">JSON Web Key Set</a>
 </div>
-<pre>
-{{ .public_key }}
-</pre>
+<pre><code>{{ .public_key }}</code></pre>
 <h2>Spring Boot</h2>
 <h3>Maven dependency</h3>
 <pre style="white-space: pre-wrap; word-wrap: break-word;">
@@ -111,7 +109,7 @@
         urlParams = new URLSearchParams(window.location.search);
     }
     if (urlParams.has("access_token") === true) {
-        document.getElementById("token_output").textContent = urlParams.get("access_token");
+        document.getElementById("access_token_output").textContent = urlParams.get("access_token");
     } else if (urlParams.has("code") === true) {
         const postParams = new URLSearchParams({
             "grant_type": "authorization_code",
@@ -131,7 +129,8 @@
                 return resp.json();
             })
             .then(data => {
-                document.getElementById("token_output").textContent = data.access_token;
+                document.getElementById("access_token_output").textContent = data.access_token;
+                document.getElementById("id_token_output").textContent = data.id_token;
                 sessionStorage.removeItem('client_id'+urlParams.get("state"));
                 {{- if .pkce }}
                 sessionStorage.removeItem('code_verifier'+urlParams.get("state"));
@@ -139,7 +138,7 @@
             })
             .catch(error => {
                 console.error(error);
-                document.getElementById("token_output").textContent = error.message;
+                document.getElementById("access_token_output").textContent = error.message;
             });
     }
 </script>

@@ -15,22 +15,22 @@ type AuthenticPerson struct {
 }
 
 type embeddedStore struct {
-	sessionStore    sessions.Store
-	users           map[string]AuthenticPerson
-	sessionName     string
-	sessionLifetime int
+	sessionStore sessions.Store
+	users        map[string]AuthenticPerson
+	sessionName  string
+	sessionTTL   int64
 }
 
-func NewEmbeddedStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionLifetime int) Store {
+func NewEmbeddedStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionTTL int64) Store {
 	var lowerCaseUsers = make(map[string]AuthenticPerson)
 	for userID, authenticPerson := range users {
 		lowerCaseUsers[strings.ToLower(userID)] = authenticPerson
 	}
 	return &embeddedStore{
-		sessionStore:    sessionStore,
-		users:           lowerCaseUsers,
-		sessionName:     sessionName,
-		sessionLifetime: sessionLifetime,
+		sessionStore: sessionStore,
+		users:        lowerCaseUsers,
+		sessionName:  sessionName,
+		sessionTTL:   sessionTTL,
 	}
 }
 
@@ -54,7 +54,7 @@ func (e embeddedStore) IsActiveSession(r *http.Request) (string, bool) {
 
 	var uid, sct = session.Values["uid"], session.Values["sct"]
 
-	if uid != nil && sct != nil && time.Unix(sct.(int64), 0).Add(time.Duration(e.sessionLifetime)*time.Second).After(time.Now()) {
+	if uid != nil && sct != nil && time.Unix(sct.(int64), 0).Add(time.Duration(e.sessionTTL)*time.Second).After(time.Now()) {
 		return uid.(string), true
 	}
 
@@ -65,7 +65,7 @@ func (e embeddedStore) AuthenticationTime(r *http.Request) (time.Time, time.Time
 	var session, _ = e.sessionStore.Get(r, e.sessionName)
 	if sct := session.Values["sct"]; sct != nil {
 		var ctime = time.Unix(sct.(int64), 0)
-		return ctime, ctime.Add(time.Duration(e.sessionLifetime) * time.Second)
+		return ctime, ctime.Add(time.Duration(e.sessionTTL) * time.Second)
 	}
 	return time.Time{}, time.Time{}
 }

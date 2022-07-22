@@ -12,7 +12,7 @@ import (
 type userInfoHandler struct {
 	peopleStore   people.Store
 	tokenVerifier TokenVerifier
-	customClaims  Claims
+	extraClaims   map[string]string
 	sessionName   string
 }
 
@@ -45,14 +45,15 @@ func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if person, err := u.peopleStore.Lookup(userID); err == nil {
 
+		var user = User{*person, userID}
+
 		var claims = map[string]any{
 			ClaimSubject: userID,
 		}
 
-		if err := customizeMap(claims, u.customClaims, User{*person, userID}); err != nil {
-			Error(w, ErrorInternal, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		AddProfileClaims(claims, user)
+		AddEmailClaims(claims, user)
+		AddExtraClaims(claims, u.extraClaims, user)
 
 		var bytes, err = json.Marshal(claims)
 		if err != nil {
@@ -68,11 +69,11 @@ func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func UserInfoHandler(peopleStore people.Store, tokenVerifier TokenVerifier, customClaims Claims, sessionName string) http.Handler {
+func UserInfoHandler(peopleStore people.Store, tokenVerifier TokenVerifier, extraClaims map[string]string, sessionName string) http.Handler {
 	return &userInfoHandler{
 		peopleStore:   peopleStore,
 		tokenVerifier: tokenVerifier,
-		customClaims:  customClaims,
+		extraClaims:   extraClaims,
 		sessionName:   sessionName,
 	}
 }

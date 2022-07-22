@@ -15,26 +15,28 @@ import (
 )
 
 type Settings struct {
-	Issuer               string                            `json:"issuer"`
-	Port                 int                               `json:"port"`
-	Title                string                            `json:"title"`
-	Users                map[string]people.AuthenticPerson `json:"users"`
-	Key                  string                            `json:"key"`
-	AdditionalKeys       []string                          `json:"additional_keys,omitempty"`
-	Clients              oauth2.Clients                    `json:"clients"`
-	Claims               oauth2.Claims                     `json:"claims"`
-	Scope                string                            `json:"scope"`
-	AccessTokenLifetime  int                               `json:"access_token_lifetime"`
-	RefreshTokenLifetime int                               `json:"refresh_token_lifetime"`
-	SessionSecret        string                            `json:"session_secret"`
-	SessionName          string                            `json:"session_name"`
-	SessionLifetime      int                               `json:"session_lifetime"`
-	DisablePKCE          bool                              `json:"disable_pkce"`
-	PeopleStore          *people.StoreSettings             `json:"people_store,omitempty"`
-	DisablePeopleAPI     bool                              `json:"disable_people_api,omitempty"`
-	rsaSigningKey        *rsa.PrivateKey
-	rsaSigningKeyID      string
-	rsaAdditionalKeys    map[string]*rsa.PublicKey
+	Issuer                 string                            `json:"issuer"`
+	Port                   int                               `json:"port"`
+	Title                  string                            `json:"title"`
+	Users                  map[string]people.AuthenticPerson `json:"users"`
+	Key                    string                            `json:"key"`
+	AdditionalKeys         []string                          `json:"additional_keys,omitempty"`
+	Clients                oauth2.Clients                    `json:"clients"`
+	Scope                  string                            `json:"scope"`
+	AccessTokenExtraClaims map[string]string                 `json:"access_token_extra_claims"`
+	AccessTokenTTL         int                               `json:"access_token_ttl"`
+	RefreshTokenTTL        int                               `json:"refresh_token_ttl"`
+	IDTokenTTL             int                               `json:"id_token_ttl"`
+	IDTokenExtraClaims     map[string]string                 `json:"id_token_extra_claims"`
+	SessionSecret          string                            `json:"session_secret"`
+	SessionName            string                            `json:"session_name"`
+	SessionTTL             int                               `json:"session_ttl"`
+	DisablePKCE            bool                              `json:"disable_pkce"`
+	PeopleStore            *people.StoreSettings             `json:"people_store,omitempty"`
+	DisablePeopleAPI       bool                              `json:"disable_people_api,omitempty"`
+	rsaSigningKey          *rsa.PrivateKey
+	rsaSigningKeyID        string
+	rsaAdditionalKeys      map[string]*rsa.PublicKey
 }
 
 func NewDefaultSettings() *Settings {
@@ -58,19 +60,18 @@ func NewDefaultSettings() *Settings {
 				RedirectURIPattern: "https?:\\/\\/localhost(:\\d+)?\\/",
 			},
 		},
-		AccessTokenLifetime:  3_600,
-		RefreshTokenLifetime: 28_800,
-		Claims: oauth2.Claims{
-			"givenName": "{{ .Details.first_name }}",
-			"sn":        "{{ .Details.last_name }}",
-			"email":     "{{ .Details.email }}",
-			"groups":    "{{ .Groups | join ',' }}",
-			"user_id":   "{{ .UserID | upper }}",
+		AccessTokenTTL:  3_600,
+		RefreshTokenTTL: 28_800,
+		IDTokenTTL:      28_800,
+		AccessTokenExtraClaims: map[string]string{
+			"prn":   "$user_id",
+			"email": "$email",
 		},
-		Scope:           "profile email",
-		SessionName:     "ASESSION",
-		SessionSecret:   stringutil.RandomBytesString(32),
-		SessionLifetime: 28_800,
+		IDTokenExtraClaims: map[string]string{},
+		Scope:              "profile email",
+		SessionName:        "ASESSION",
+		SessionSecret:      stringutil.RandomBytesString(32),
+		SessionTTL:         28_800,
 	}
 }
 

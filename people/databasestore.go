@@ -14,17 +14,17 @@ type databaseStore struct {
 	settings *StoreSettings
 }
 
-func NewDatabaseStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionLifetime int, settings *StoreSettings) (Store, error) {
+func NewDatabaseStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionTTL int64, settings *StoreSettings) (Store, error) {
 	dbconn, err := sql.Open("postgres", settings.URI)
 	if err != nil {
 		return nil, err
 	}
 	return &databaseStore{
 		embeddedStore: embeddedStore{
-			sessionStore:    sessionStore,
-			users:           users,
-			sessionName:     sessionName,
-			sessionLifetime: sessionLifetime,
+			sessionStore: sessionStore,
+			users:        users,
+			sessionName:  sessionName,
+			sessionTTL:   sessionTTL,
 		},
 		dbconn:   dbconn,
 		settings: settings,
