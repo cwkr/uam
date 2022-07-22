@@ -6,9 +6,9 @@ import (
 	_ "embed"
 	"encoding/pem"
 	"fmt"
-	"github.com/cwkr/auth-server/directory"
 	"github.com/cwkr/auth-server/htmlutil"
 	"github.com/cwkr/auth-server/oauth2/pkce"
+	"github.com/cwkr/auth-server/people"
 	"github.com/cwkr/auth-server/stringutil"
 	"html/template"
 	"log"
@@ -23,7 +23,7 @@ var indexTpl string
 
 type indexHandler struct {
 	settings      *Settings
-	authenticator directory.Store
+	authenticator people.Store
 	publicKey     *rsa.PublicKey
 	usePKCE       bool
 }
@@ -68,7 +68,7 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func IndexHandler(settings *Settings, authenticator directory.Store, usePKCE bool) http.Handler {
+func IndexHandler(settings *Settings, authenticator people.Store, usePKCE bool) http.Handler {
 	return &indexHandler{
 		settings:      settings,
 		authenticator: authenticator,

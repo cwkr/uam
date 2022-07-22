@@ -1,4 +1,4 @@
-package directory
+package people
 
 import (
 	"github.com/gorilla/sessions"

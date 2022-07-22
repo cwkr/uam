@@ -2,9 +2,9 @@ package oauth2
 
 import (
 	"fmt"
-	"github.com/cwkr/auth-server/directory"
 	"github.com/cwkr/auth-server/htmlutil"
 	"github.com/cwkr/auth-server/httputil"
+	"github.com/cwkr/auth-server/people"
 	"github.com/cwkr/auth-server/stringutil"
 	"log"
 	"net/http"
@@ -28,7 +28,7 @@ func IntersectScope(availableScope, requestedScope string) string {
 
 type authorizeHandler struct {
 	tokenService   TokenCreator
-	directoryStore directory.Store
+	directoryStore people.Store
 	clients        Clients
 	scope          string
 	disablePKCE    bool
@@ -112,7 +112,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func AuthorizeHandler(tokenService TokenCreator, directoryStore directory.Store, clients Clients, scope string, disablePKCE bool) http.Handler {
+func AuthorizeHandler(tokenService TokenCreator, directoryStore people.Store, clients Clients, scope string, disablePKCE bool) http.Handler {
 	return &authorizeHandler{
 		tokenService:   tokenService,
 		directoryStore: directoryStore,

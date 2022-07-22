@@ -3,9 +3,11 @@
 This is a simple OAuth2 authorization server implementation supporting *Implicit*,
 *Authorization Code* (with and without *PKCE*) and *Refresh Token* grant types.
 
-It is possible to use a PostgreSQL database or LDAP as backend.
+It is possible to use a PostgreSQL database or LDAP as people store.
 
 ## Settings
+
+### PostgreSQL as people store
 
 ```jsonc
 {
@@ -48,19 +50,56 @@ It is possible to use a PostgreSQL database or LDAP as backend.
   "session_name": "ASESSION",
   "session_lifetime": 28800,
   "disable_pkce": false,
-  "directory": {
+  "people_store": {
     "uri": "postgresql://authserver:trustno1@localhost/dev?sslmode=disable",
     "credentials_query": "SELECT id, password_hash FROM users WHERE lower(id) = lower($1)",
     "groups_query": "SELECT id FROM groups WHERE lower(user_id) = lower($1)",
     "details_query": "SELECT first_name, last_name FROM users WHERE lower(id) = lower($1)"
   },
-  "disable_people_lookup": false,
-  "people_lookup_response": {
-    "email": "{{ .Details.email }}",
-    "givenName": "{{ .Details.first_name }}",
+  "disable_people_api": false
+}
+```
+
+### Oracle Internt Directory (LDAP) as people store
+
+```jsonc
+{
+  "issuer": "http://localhost:6080/",
+  "port": 6080,
+  "title": "Auth Server",
+  "key": "mykey.pem",
+  "clients": {
+    "app": {
+      "redirect_uri_pattern": "https?:\\/\\/localhost(:\\d+)?\\/"
+    }
+  },
+  "claims": {
+    "email": "{{ .Details.mail }}",
+    "givenName": "{{ .Details.givenname }}",
     "groups": "{{ .Groups | join ',' }}",
-    "sn": "{{ .Details.last_name }}"
-  }
+    "sn": "{{ .Details.sn }}",
+    "user_id": "{{ .UserID | upper }}"
+  },
+  "scope": "profile",
+  "access_token_lifetime": 3600,
+  "refresh_token_lifetime": 28800,
+  "session_secret": "jpDc7ah68Vw8yOccr9yIaWDR7_oqN1vHrLQEJ1YLvnQ",
+  "session_name": "ASESSION",
+  "session_lifetime": 28800,
+  "disable_pkce": false,
+  "people_store": {
+    "uri": "ldaps://cn=access_user,cn=Users,dc=example,dc=org:trustno1@oid.example.org:3070",
+    "credentials_query": "(&(objectClass=person)(uid=%s))",
+    "groups_query": "(&(objectClass=groupOfUniqueNames)(uniquemember=%s))",
+    "details_query": "(&(objectClass=person)(uid=%s))",
+    "parameters": {
+      "base_dn": "dc=example,dc=org",
+      "details_attributes": "sn givenname departmentnumber mail",
+      "user_id_attribute": "uid",
+      "group_id_attribute": "dn"
+    }
+  },
+  "disable_people_api": false
 }
 ```
 

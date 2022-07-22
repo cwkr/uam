@@ -5,9 +5,9 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"github.com/cwkr/auth-server/directory"
 	"github.com/cwkr/auth-server/fileutil"
 	"github.com/cwkr/auth-server/oauth2"
+	"github.com/cwkr/auth-server/people"
 	"github.com/cwkr/auth-server/stringutil"
 	"os"
 	"path/filepath"
@@ -15,24 +15,23 @@ import (
 )
 
 type Settings struct {
-	Issuer               string                               `json:"issuer"`
-	Port                 int                                  `json:"port"`
-	Title                string                               `json:"title"`
-	Users                map[string]directory.AuthenticPerson `json:"users"`
-	Key                  string                               `json:"key"`
-	AdditionalKeys       []string                             `json:"additional_keys,omitempty"`
-	Clients              oauth2.Clients                       `json:"clients"`
-	Claims               oauth2.Claims                        `json:"claims"`
-	Scope                string                               `json:"scope"`
-	AccessTokenLifetime  int                                  `json:"access_token_lifetime"`
-	RefreshTokenLifetime int                                  `json:"refresh_token_lifetime"`
-	SessionSecret        string                               `json:"session_secret"`
-	SessionName          string                               `json:"session_name"`
-	SessionLifetime      int                                  `json:"session_lifetime"`
-	DisablePKCE          bool                                 `json:"disable_pkce"`
-	Directory            *directory.StoreSettings             `json:"directory,omitempty"`
-	DisablePeopleLookup  bool                                 `json:"disable_people_lookup,omitempty"`
-	PeopleLookupResponse map[string]any                       `json:"people_lookup_response,omitempty"`
+	Issuer               string                            `json:"issuer"`
+	Port                 int                               `json:"port"`
+	Title                string                            `json:"title"`
+	Users                map[string]people.AuthenticPerson `json:"users"`
+	Key                  string                            `json:"key"`
+	AdditionalKeys       []string                          `json:"additional_keys,omitempty"`
+	Clients              oauth2.Clients                    `json:"clients"`
+	Claims               oauth2.Claims                     `json:"claims"`
+	Scope                string                            `json:"scope"`
+	AccessTokenLifetime  int                               `json:"access_token_lifetime"`
+	RefreshTokenLifetime int                               `json:"refresh_token_lifetime"`
+	SessionSecret        string                            `json:"session_secret"`
+	SessionName          string                            `json:"session_name"`
+	SessionLifetime      int                               `json:"session_lifetime"`
+	DisablePKCE          bool                              `json:"disable_pkce"`
+	PeopleStore          *people.StoreSettings             `json:"people_store,omitempty"`
+	DisablePeopleAPI     bool                              `json:"disable_people_api,omitempty"`
 	rsaSigningKey        *rsa.PrivateKey
 	rsaSigningKeyID      string
 	rsaAdditionalKeys    map[string]*rsa.PublicKey
@@ -43,9 +42,9 @@ func NewDefaultSettings() *Settings {
 		Issuer: "http://localhost:6080/",
 		Port:   6080,
 		Title:  "Auth Server",
-		Users: map[string]directory.AuthenticPerson{
+		Users: map[string]people.AuthenticPerson{
 			"user": {
-				Person: directory.Person{
+				Person: people.Person{
 					Details: map[string]any{
 						"first_name": "First Name",
 						"last_name":  "Last Name",

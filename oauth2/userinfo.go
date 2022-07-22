@@ -3,14 +3,14 @@ package oauth2
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cwkr/auth-server/directory"
 	"github.com/cwkr/auth-server/httputil"
+	"github.com/cwkr/auth-server/people"
 	"log"
 	"net/http"
 )
 
 type userInfoHandler struct {
-	directoryStore directory.Store
+	directoryStore people.Store
 	tokenVerifier  TokenVerifier
 	customClaims   Claims
 	sessionName    string
@@ -68,7 +68,7 @@ func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func UserInfoHandler(directoryStore directory.Store, tokenVerifier TokenVerifier, customClaims Claims, sessionName string) http.Handler {
+func UserInfoHandler(directoryStore people.Store, tokenVerifier TokenVerifier, customClaims Claims, sessionName string) http.Handler {
 	return &userInfoHandler{
 		directoryStore: directoryStore,
 		tokenVerifier:  tokenVerifier,

@@ -1,4 +1,4 @@
-package directory
+package people
 
 import (
 	"fmt"
@@ -41,12 +41,12 @@ func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson,
 			sessionLifetime: sessionLifetime,
 		},
 		ldapURL:           ldapURL,
-		baseDN:            settings.Parameters["base_dn"].(string),
+		baseDN:            settings.Parameters["base_dn"],
 		bindUser:          bindUsername,
 		bindPassword:      bindPassword,
-		detailsAttributes: settings.Parameters["details_attributes"].([]string),
-		userIDAttr:        settings.Parameters["user_id_attribute"].(string),
-		groupIDAttr:       settings.Parameters["group_id_attribute"].(string),
+		detailsAttributes: strings.Fields(settings.Parameters["details_attributes"]),
+		userIDAttr:        settings.Parameters["user_id_attribute"],
+		groupIDAttr:       settings.Parameters["group_id_attribute"],
 		settings:          settings,
 	}, nil
 }

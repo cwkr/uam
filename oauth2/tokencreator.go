@@ -3,7 +3,7 @@ package oauth2
 import (
 	"crypto/rsa"
 	"fmt"
-	"github.com/cwkr/auth-server/directory"
+	"github.com/cwkr/auth-server/people"
 	"github.com/cwkr/auth-server/stringutil"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -36,7 +36,7 @@ const (
 type Claims map[string]any
 
 type User struct {
-	directory.Person
+	people.Person
 	UserID string `json:"user_id"`
 }
 

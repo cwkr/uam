@@ -2,8 +2,8 @@ package oauth2
 
 import (
 	"encoding/json"
-	"github.com/cwkr/auth-server/directory"
 	"github.com/cwkr/auth-server/oauth2/pkce"
+	"github.com/cwkr/auth-server/people"
 	"github.com/cwkr/auth-server/stringutil"
 	"golang.org/x/crypto/bcrypt"
 	"log"
@@ -13,7 +13,7 @@ import (
 
 type tokenHandler struct {
 	tokenService  TokenCreator
-	authenticator directory.Store
+	authenticator people.Store
 	clients       Clients
 	disablePKCE   bool
 }
@@ -119,7 +119,7 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
-func TokenHandler(tokenService TokenCreator, authenticator directory.Store, clients Clients, disablePKCE bool) http.Handler {
+func TokenHandler(tokenService TokenCreator, authenticator people.Store, clients Clients, disablePKCE bool) http.Handler {
 	return &tokenHandler{
 		tokenService:  tokenService,
 		clients:       clients,

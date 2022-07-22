@@ -5,9 +5,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/cwkr/auth-server/directory"
 	"github.com/cwkr/auth-server/htmlutil"
 	"github.com/cwkr/auth-server/oauth2"
+	"github.com/cwkr/auth-server/people"
 	"github.com/cwkr/auth-server/server"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
@@ -75,21 +75,21 @@ func main() {
 	sessionStore.Options.HttpOnly = true
 	sessionStore.Options.MaxAge = 0
 
-	var directoryStore directory.Store
-	if settings.Directory != nil {
-		if strings.HasPrefix(settings.Directory.URI, "postgresql:") {
-			if directoryStore, err = directory.NewDatabaseStore(sessionStore, settings.Users, settings.SessionName, settings.SessionLifetime, settings.Directory); err != nil {
+	var directoryStore people.Store
+	if settings.PeopleStore != nil {
+		if strings.HasPrefix(settings.PeopleStore.URI, "postgresql:") {
+			if directoryStore, err = people.NewDatabaseStore(sessionStore, settings.Users, settings.SessionName, settings.SessionLifetime, settings.PeopleStore); err != nil {
 				panic(err)
 			}
-		} else if strings.HasPrefix(settings.Directory.URI, "ldap:") || strings.HasPrefix(settings.Directory.URI, "ldaps:") {
-			if directoryStore, err = directory.NewLdapStore(sessionStore, settings.Users, settings.SessionName, settings.SessionLifetime, settings.Directory); err != nil {
+		} else if strings.HasPrefix(settings.PeopleStore.URI, "ldap:") || strings.HasPrefix(settings.PeopleStore.URI, "ldaps:") {
+			if directoryStore, err = people.NewLdapStore(sessionStore, settings.Users, settings.SessionName, settings.SessionLifetime, settings.PeopleStore); err != nil {
 				panic(err)
 			}
 		} else {
-			panic(errors.New("unsupported or empty store uri: " + settings.Directory.URI))
+			panic(errors.New("unsupported or empty store uri: " + settings.PeopleStore.URI))
 		}
 	} else {
-		directoryStore = directory.NewEmbeddedStore(sessionStore, settings.Users, settings.SessionName, settings.SessionLifetime)
+		directoryStore = people.NewEmbeddedStore(sessionStore, settings.Users, settings.SessionName, settings.SessionLifetime)
 	}
 
 	var router = mux.NewRouter()
@@ -112,8 +112,8 @@ func main() {
 		Methods(http.MethodGet, http.MethodOptions)
 	router.Handle("/userinfo", oauth2.UserInfoHandler(directoryStore, tokenService, settings.Claims, settings.SessionName)).
 		Methods(http.MethodGet, http.MethodOptions)
-	if !settings.DisablePeopleLookup {
-		router.Handle("/people/{user_id}", oauth2.PeopleHandler(directoryStore, settings.PeopleLookupResponse)).
+	if !settings.DisablePeopleAPI {
+		router.Handle("/people/{user_id}", server.PeopleAPIHandler(directoryStore)).
 			Methods(http.MethodGet, http.MethodOptions)
 	}
 

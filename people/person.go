@@ -1,4 +1,4 @@
-package directory
+package people
 
 type Person struct {
 	Details map[string]any `json:"details"`
