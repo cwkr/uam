@@ -1,6 +1,9 @@
 package people
 
 type Person struct {
-	Details map[string]any `json:"details"`
-	Groups  []string       `json:"groups"`
+	Birthdate  string   `json:"birthdate,omitempty"`
+	Email      string   `json:"email,omitempty"`
+	FamilyName string   `json:"family_name,omitempty"`
+	GivenName  string   `json:"given_name,omitempty"`
+	Groups     []string `json:"groups,omitempty"`
 }

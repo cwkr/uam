@@ -27,11 +27,11 @@ func IntersectScope(availableScope, requestedScope string) string {
 }
 
 type authorizeHandler struct {
-	tokenService   TokenCreator
-	directoryStore people.Store
-	clients        Clients
-	scope          string
-	disablePKCE    bool
+	tokenService TokenCreator
+	peopleStore  people.Store
+	clients      Clients
+	scope        string
+	disablePKCE  bool
 }
 
 func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -48,9 +48,9 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		user            User
 	)
 
-	if uid, active := a.directoryStore.IsActiveSession(r); active {
-		if usr, err := a.directoryStore.Lookup(uid); err == nil {
-			user = User{UserID: uid, Person: usr}
+	if uid, active := a.peopleStore.IsActiveSession(r); active {
+		if person, err := a.peopleStore.Lookup(uid); err == nil {
+			user = User{UserID: uid, Person: *person}
 		} else {
 			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -112,12 +112,12 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func AuthorizeHandler(tokenService TokenCreator, directoryStore people.Store, clients Clients, scope string, disablePKCE bool) http.Handler {
+func AuthorizeHandler(tokenService TokenCreator, peopleStore people.Store, clients Clients, scope string, disablePKCE bool) http.Handler {
 	return &authorizeHandler{
-		tokenService:   tokenService,
-		directoryStore: directoryStore,
-		clients:        clients,
-		scope:          scope,
-		disablePKCE:    disablePKCE,
+		tokenService: tokenService,
+		peopleStore:  peopleStore,
+		clients:      clients,
+		scope:        scope,
+		disablePKCE:  disablePKCE,
 	}
 }

@@ -70,12 +70,12 @@ func (e embeddedStore) AuthenticationTime(r *http.Request) (time.Time, time.Time
 	return time.Time{}, time.Time{}
 }
 
-func (e embeddedStore) Lookup(userID string) (Person, error) {
+func (e embeddedStore) Lookup(userID string) (*Person, error) {
 	var authenticPerson, found = e.users[strings.ToLower(userID)]
 
 	if found {
-		return authenticPerson.Person, nil
+		return &authenticPerson.Person, nil
 	}
 
-	return Person{}, ErrPersonNotFound
+	return nil, ErrPersonNotFound
 }

@@ -22,10 +22,10 @@ import (
 var indexTpl string
 
 type indexHandler struct {
-	settings      *Settings
-	authenticator people.Store
-	publicKey     *rsa.PublicKey
-	usePKCE       bool
+	settings    *Settings
+	peopleStore people.Store
+	publicKey   *rsa.PublicKey
+	usePKCE     bool
 }
 
 func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -39,11 +39,11 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Bytes: pubASN1,
 	})
 
-	var userID, active = i.authenticator.IsActiveSession(r)
+	var userID, active = i.peopleStore.IsActiveSession(r)
 
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
 	var loginStart, loginExpiry string
-	if iat, exp := i.authenticator.AuthenticationTime(r); active {
+	if iat, exp := i.peopleStore.AuthenticationTime(r); active {
 		loginStart = iat.Format(time.RFC3339)
 		loginExpiry = exp.Format(time.RFC3339)
 	}
@@ -68,10 +68,10 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func IndexHandler(settings *Settings, authenticator people.Store, usePKCE bool) http.Handler {
+func IndexHandler(settings *Settings, peopleStore people.Store, usePKCE bool) http.Handler {
 	return &indexHandler{
-		settings:      settings,
-		authenticator: authenticator,
-		usePKCE:       usePKCE,
+		settings:    settings,
+		peopleStore: peopleStore,
+		usePKCE:     usePKCE,
 	}
 }

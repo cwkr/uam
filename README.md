@@ -35,12 +35,11 @@ It is possible to use a PostgreSQL database or LDAP as people store.
     }
   },
   "claims": {
-    "email": "{{ .Details.email }}",
-    "givenName": "{{ .Details.first_name }}",
+    "email": "{{ .Email }}",
+    "givenName": "{{ .GivenName }}",
     "groups": "{{ .Groups | join ',' }}",
-    "sn": "{{ .Details.last_name }}",
-    "user_id": "{{ .UserID | upper }}",
-    "prn": "{{ .UserID | lower }}"
+    "sn": "{{ .FamilyName }}",
+    "user_id": "{{ .UserID | upper }}"
   },
   // available scopes
   "scope": "profile email offline_access",
@@ -54,7 +53,7 @@ It is possible to use a PostgreSQL database or LDAP as people store.
     "uri": "postgresql://authserver:trustno1@localhost/dev?sslmode=disable",
     "credentials_query": "SELECT id, password_hash FROM users WHERE lower(id) = lower($1)",
     "groups_query": "SELECT id FROM groups WHERE lower(user_id) = lower($1)",
-    "details_query": "SELECT first_name, last_name FROM users WHERE lower(id) = lower($1)"
+    "details_query": "SELECT first_name, last_name, email, TO_CHAR(birthdate, 'YYYY-MM-DD') FROM users WHERE lower(id) = lower($1)"
   },
   "disable_people_api": false
 }
@@ -74,10 +73,10 @@ It is possible to use a PostgreSQL database or LDAP as people store.
     }
   },
   "claims": {
-    "email": "{{ .Details.mail }}",
-    "givenName": "{{ .Details.givenname }}",
+    "email": "{{ .Email }}",
+    "givenName": "{{ .GivenName }}",
     "groups": "{{ .Groups | join ',' }}",
-    "sn": "{{ .Details.sn }}",
+    "sn": "{{ .FamilyName }}",
     "user_id": "{{ .UserID | upper }}"
   },
   "scope": "profile",
@@ -94,9 +93,11 @@ It is possible to use a PostgreSQL database or LDAP as people store.
     "details_query": "(&(objectClass=person)(uid=%s))",
     "parameters": {
       "base_dn": "dc=example,dc=org",
-      "details_attributes": "sn givenname departmentnumber mail",
       "user_id_attribute": "uid",
-      "group_id_attribute": "dn"
+      "group_id_attribute": "dn",
+      "given_name_attribute": "givenname",
+      "family_name_attribute": "sn",
+      "email_attribute": "mail"
     }
   },
   "disable_people_api": false

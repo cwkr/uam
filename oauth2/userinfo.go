@@ -10,10 +10,10 @@ import (
 )
 
 type userInfoHandler struct {
-	directoryStore people.Store
-	tokenVerifier  TokenVerifier
-	customClaims   Claims
-	sessionName    string
+	peopleStore   people.Store
+	tokenVerifier TokenVerifier
+	customClaims  Claims
+	sessionName   string
 }
 
 func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -43,13 +43,13 @@ func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if person, err := u.directoryStore.Lookup(userID); err == nil {
+	if person, err := u.peopleStore.Lookup(userID); err == nil {
 
 		var claims = map[string]any{
 			ClaimSubject: userID,
 		}
 
-		if err := customizeMap(claims, u.customClaims, User{person, userID}); err != nil {
+		if err := customizeMap(claims, u.customClaims, User{*person, userID}); err != nil {
 			Error(w, ErrorInternal, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -68,11 +68,11 @@ func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func UserInfoHandler(directoryStore people.Store, tokenVerifier TokenVerifier, customClaims Claims, sessionName string) http.Handler {
+func UserInfoHandler(peopleStore people.Store, tokenVerifier TokenVerifier, customClaims Claims, sessionName string) http.Handler {
 	return &userInfoHandler{
-		directoryStore: directoryStore,
-		tokenVerifier:  tokenVerifier,
-		customClaims:   customClaims,
-		sessionName:    sessionName,
+		peopleStore:   peopleStore,
+		tokenVerifier: tokenVerifier,
+		customClaims:  customClaims,
+		sessionName:   sessionName,
 	}
 }

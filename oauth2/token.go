@@ -12,10 +12,10 @@ import (
 )
 
 type tokenHandler struct {
-	tokenService  TokenCreator
-	authenticator people.Store
-	clients       Clients
-	disablePKCE   bool
+	tokenService TokenCreator
+	peopleStore  people.Store
+	clients      Clients
+	disablePKCE  bool
 }
 
 func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -74,12 +74,12 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error(w, ErrorInvalidGrant, "invalid auth code", http.StatusBadRequest)
 			return
 		}
-		var user, err = j.authenticator.Lookup(userID)
+		var person, err = j.peopleStore.Lookup(userID)
 		if err != nil {
-			Error(w, ErrorInternal, "user not found", http.StatusInternalServerError)
+			Error(w, ErrorInternal, "person not found", http.StatusInternalServerError)
 			return
 		}
-		accessToken, _ = j.tokenService.GenerateAccessToken(User{Person: user, UserID: userID}, scope)
+		accessToken, _ = j.tokenService.GenerateAccessToken(User{Person: *person, UserID: userID}, scope)
 		refreshToken, _ = j.tokenService.GenerateRefreshToken(userID, clientID, scope)
 	case GrantTypeRefreshToken:
 		if stringutil.IsAnyEmpty(clientID, refreshToken) {
@@ -91,12 +91,12 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error(w, ErrorInvalidGrant, "invalid refresh_token", http.StatusBadRequest)
 			return
 		}
-		var user, err = j.authenticator.Lookup(userID)
+		var person, err = j.peopleStore.Lookup(userID)
 		if err != nil {
-			Error(w, ErrorInternal, "user not found", http.StatusInternalServerError)
+			Error(w, ErrorInternal, "person not found", http.StatusInternalServerError)
 			return
 		}
-		accessToken, _ = j.tokenService.GenerateAccessToken(User{Person: user, UserID: userID}, scope)
+		accessToken, _ = j.tokenService.GenerateAccessToken(User{Person: *person, UserID: userID}, scope)
 		refreshToken = ""
 	default:
 		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code' and 'refresh_token' are supported", http.StatusBadRequest)
@@ -119,11 +119,11 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
-func TokenHandler(tokenService TokenCreator, authenticator people.Store, clients Clients, disablePKCE bool) http.Handler {
+func TokenHandler(tokenService TokenCreator, peopleStore people.Store, clients Clients, disablePKCE bool) http.Handler {
 	return &tokenHandler{
-		tokenService:  tokenService,
-		clients:       clients,
-		disablePKCE:   disablePKCE,
-		authenticator: authenticator,
+		tokenService: tokenService,
+		clients:      clients,
+		disablePKCE:  disablePKCE,
+		peopleStore:  peopleStore,
 	}
 }

@@ -10,7 +10,7 @@ import (
 )
 
 type peopleAPIHandler struct {
-	directoryStore people.Store
+	peopleStore people.Store
 }
 
 func (p *peopleAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +27,7 @@ func (p *peopleAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var userID = mux.Vars(r)["user_id"]
-	if person, err := p.directoryStore.Lookup(userID); err == nil {
+	if person, err := p.peopleStore.Lookup(userID); err == nil {
 		var bytes, err = json.Marshal(person)
 		if err != nil {
 			oauth2.Error(w, oauth2.ErrorInternal, err.Error(), http.StatusInternalServerError)
@@ -46,8 +46,8 @@ func (p *peopleAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func PeopleAPIHandler(directoryStore people.Store) http.Handler {
+func PeopleAPIHandler(peopleStore people.Store) http.Handler {
 	return &peopleAPIHandler{
-		directoryStore: directoryStore,
+		peopleStore: peopleStore,
 	}
 }

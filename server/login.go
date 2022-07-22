@@ -23,9 +23,9 @@ const (
 var loginTpl string
 
 type loginHandler struct {
-	settings      *Settings
-	authenticator people.Store
-	sessionStore  sessions.Store
+	settings     *Settings
+	peopleStore  people.Store
+	sessionStore sessions.Store
 }
 
 func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -42,7 +42,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if stringutil.IsAnyEmpty(userID, password) {
 			message = "username and password must not be empty"
 		} else {
-			if realUserID, err := j.authenticator.Authenticate(userID, password); err == nil {
+			if realUserID, err := j.peopleStore.Authenticate(userID, password); err == nil {
 				session.Values["uid"] = realUserID
 				var now = time.Now()
 				session.Values["sct"] = now.Unix()
@@ -75,10 +75,10 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func LoginHandler(settings *Settings, authenticator people.Store, sessionStore sessions.Store) http.Handler {
+func LoginHandler(settings *Settings, peopleStore people.Store, sessionStore sessions.Store) http.Handler {
 	return &loginHandler{
-		settings:      settings,
-		authenticator: authenticator,
-		sessionStore:  sessionStore,
+		settings:     settings,
+		peopleStore:  peopleStore,
+		sessionStore: sessionStore,
 	}
 }

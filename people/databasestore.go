@@ -31,7 +31,12 @@ func NewDatabaseStore(sessionStore sessions.Store, users map[string]AuthenticPer
 	}, nil
 }
 
-func (p databaseStore) QueryGroups(userID string) ([]string, error) {
+func (p databaseStore) queryGroups(userID string) ([]string, error) {
+
+	if p.settings.GroupsQuery == "" {
+		return []string{}, nil
+	}
+
 	var groups []string
 
 	log.Printf("SQL: %s; -- %s", p.settings.GroupsQuery, userID)
@@ -53,25 +58,14 @@ func (p databaseStore) QueryGroups(userID string) ([]string, error) {
 	return groups, nil
 }
 
-func (p databaseStore) QueryDetails(userID string) (map[string]any, error) {
-	var details = make(map[string]any)
+func (p databaseStore) queryDetails(userID string) (*Person, error) {
+	var person Person
 
 	log.Printf("SQL: %s; -- %s", p.settings.DetailsQuery, userID)
-	// SELECT first_name, last_name FROM users WHERE lower(id) = lower($1)
+	// SELECT given_name, family_name, email FROM users WHERE lower(id) = lower($1)
 	if rows, err := p.dbconn.Query(p.settings.DetailsQuery, userID); err == nil {
-		var cols, _ = rows.Columns()
 		if rows.Next() {
-			var columns = make([]any, len(cols))
-			var columnPointers = make([]any, len(cols))
-			for i, _ := range columns {
-				columnPointers[i] = &columns[i]
-			}
-			if err := rows.Scan(columnPointers...); err == nil {
-				for i, colName := range cols {
-					val := columnPointers[i].(*any)
-					details[colName] = *val
-				}
-			} else {
+			if err := rows.Scan(&person.GivenName, &person.FamilyName, &person.Email, &person.Birthdate); err != nil {
 				return nil, err
 			}
 		} else {
@@ -80,7 +74,7 @@ func (p databaseStore) QueryDetails(userID string) (map[string]any, error) {
 	} else {
 		return nil, err
 	}
-	return details, nil
+	return &person, nil
 }
 
 func (p databaseStore) Authenticate(userID, password string) (string, error) {
@@ -109,24 +103,24 @@ func (p databaseStore) Authenticate(userID, password string) (string, error) {
 	return "", ErrAuthenticationFailed
 }
 
-func (p databaseStore) Lookup(userID string) (Person, error) {
+func (p databaseStore) Lookup(userID string) (*Person, error) {
 	var person, err = p.embeddedStore.Lookup(userID)
 	if err == nil {
 		return person, nil
 	}
 
-	var details map[string]any
 	var groups []string
 
-	if details, err = p.QueryDetails(userID); err != nil {
+	if person, err = p.queryDetails(userID); err != nil {
 		log.Printf("!!! Query for details failed: %v", err)
-		return Person{}, err
+		return nil, err
 	}
 
-	if groups, err = p.QueryGroups(userID); err != nil {
+	if groups, err = p.queryGroups(userID); err != nil {
 		log.Printf("!!! Query for groups failed: %v", err)
-		return Person{}, err
+		return nil, err
 	}
+	person.Groups = groups
 
-	return Person{Groups: groups, Details: details}, nil
+	return person, nil
 }

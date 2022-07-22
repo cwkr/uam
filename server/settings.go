@@ -45,12 +45,10 @@ func NewDefaultSettings() *Settings {
 		Users: map[string]people.AuthenticPerson{
 			"user": {
 				Person: people.Person{
-					Details: map[string]any{
-						"first_name": "First Name",
-						"last_name":  "Last Name",
-						"email":      "email@example.org",
-					},
-					Groups: []string{"users"},
+					GivenName:  "First Name",
+					FamilyName: "Last Name",
+					Email:      "email@example.org",
+					Groups:     []string{"users"},
 				},
 				PasswordHash: "$2a$12$yos0Nv/lfhjKjJ7CSmkCteSJRmzkirYwGFlBqeY4ss3o3nFSb5WDy",
 			},
