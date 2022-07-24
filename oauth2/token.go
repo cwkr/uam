@@ -11,16 +11,18 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 )
 
 type tokenHandler struct {
-	tokenService TokenCreator
-	peopleStore  people.Store
-	clients      Clients
-	disablePKCE  bool
+	tokenService         TokenCreator
+	peopleStore          people.Store
+	clients              Clients
+	disablePKCE          bool
+	refreshTokenRotation bool
 }
 
-func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -34,13 +36,28 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var clientID, clientSecret, basicAuth = r.BasicAuth()
+	// parse parameters
+	var (
+		clientID, clientSecret, basicAuth = r.BasicAuth()
+		grantType                         = strings.ToLower(strings.TrimSpace(r.PostFormValue("grant_type")))
+		code                              = strings.TrimSpace(r.PostFormValue("code"))
+		refreshToken                      = strings.TrimSpace(r.PostFormValue("refresh_token"))
+		codeVerifier                      = strings.TrimSpace(r.PostFormValue("code_verifier"))
+		accessToken                       string
+		idToken                           string
+	)
+	// when not using basic auth load client_id and client_secret parameters
 	if !basicAuth {
 		clientID = strings.TrimSpace(r.PostFormValue("client_id"))
 		clientSecret = strings.TrimSpace(r.PostFormValue("client_secret"))
 	}
-	if client, clientExists := j.clients[clientID]; clientExists {
-		if j.disablePKCE {
+
+	// debug output of parameters
+	log.Printf("grant_type=%s client_id=%s client_secret=%s code=%s code_verifier=%s refresh_token=%s",
+		grantType, clientID, strings.Repeat("*", utf8.RuneCountInString(clientSecret)), code, codeVerifier, refreshToken)
+
+	if client, clientExists := t.clients[strings.ToLower(clientID)]; clientExists {
+		if t.disablePKCE {
 			if err := bcrypt.CompareHashAndPassword([]byte(client.SecretHash), []byte(clientSecret)); err != nil {
 				Error(w, ErrorInvalidClient, "client authentication failed", http.StatusUnauthorized)
 				return
@@ -50,26 +67,18 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Error(w, ErrorInvalidClient, "client not found", http.StatusUnauthorized)
 		return
 	}
-	var (
-		grantType    = strings.ToLower(strings.TrimSpace(r.PostFormValue("grant_type")))
-		code         = strings.TrimSpace(r.PostFormValue("code"))
-		refreshToken = strings.TrimSpace(r.PostFormValue("refresh_token"))
-		codeVerifier = strings.TrimSpace(r.PostFormValue("code_verifier"))
-		accessToken  string
-		idToken      string
-	)
 
 	switch grantType {
 	case GrantTypeAuthorizationCode:
-		if j.disablePKCE && stringutil.IsAnyEmpty(clientID, code) {
+		if t.disablePKCE && stringutil.IsAnyEmpty(clientID, code) {
 			Error(w, ErrorInvalidRequest, "client_id and code parameters are required", http.StatusBadRequest)
 			return
-		} else if !j.disablePKCE && stringutil.IsAnyEmpty(clientID, code, codeVerifier) {
+		} else if !t.disablePKCE && stringutil.IsAnyEmpty(clientID, code, codeVerifier) {
 			Error(w, ErrorInvalidRequest, "client_id, code and code_verifier parameters are required", http.StatusBadRequest)
 			return
 		}
-		var userID, scope, challenge, valid = j.tokenService.VerifyAuthCode(code)
-		if !j.disablePKCE && !pkce.Verify(challenge, codeVerifier) {
+		var userID, scope, challenge, valid = t.tokenService.VerifyAuthCode(code)
+		if !t.disablePKCE && !pkce.Verify(challenge, codeVerifier) {
 			Error(w, ErrorInvalidGrant, "invalid challenge", http.StatusBadRequest)
 			return
 		}
@@ -77,36 +86,44 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error(w, ErrorInvalidGrant, "invalid auth code", http.StatusBadRequest)
 			return
 		}
-		var person, err = j.peopleStore.Lookup(userID)
+		var person, err = t.peopleStore.Lookup(userID)
 		if err != nil {
 			Error(w, ErrorInternal, "person not found", http.StatusInternalServerError)
 			return
 		}
 		var user = User{Person: *person, UserID: userID}
-		accessToken, _ = j.tokenService.GenerateAccessToken(user, scope)
-		refreshToken, _ = j.tokenService.GenerateRefreshToken(userID, clientID, scope)
+		accessToken, _ = t.tokenService.GenerateAccessToken(user, scope)
+		refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope)
 		if strings.Contains(scope, "openid") {
 			var hash = sha256.Sum256([]byte(accessToken))
-			idToken, _ = j.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]))
+			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]))
 		}
 	case GrantTypeRefreshToken:
 		if stringutil.IsAnyEmpty(clientID, refreshToken) {
 			Error(w, ErrorInvalidRequest, "client_id and refresh_token parameters are required", http.StatusBadRequest)
 			return
 		}
-		var userID, scope, valid = j.tokenService.VerifyRefreshToken(refreshToken)
+		var userID, scope, valid = t.tokenService.VerifyRefreshToken(refreshToken)
 		if !valid {
 			Error(w, ErrorInvalidGrant, "invalid refresh_token", http.StatusBadRequest)
 			return
 		}
-		var person, err = j.peopleStore.Lookup(userID)
+		var person, err = t.peopleStore.Lookup(userID)
 		if err != nil {
 			Error(w, ErrorInternal, "person not found", http.StatusInternalServerError)
 			return
 		}
 		var user = User{Person: *person, UserID: userID}
-		accessToken, _ = j.tokenService.GenerateAccessToken(user, scope)
-		refreshToken = ""
+		accessToken, _ = t.tokenService.GenerateAccessToken(user, scope)
+		if t.refreshTokenRotation {
+			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope)
+		} else {
+			refreshToken = ""
+		}
+		if strings.Contains(scope, "openid") {
+			var hash = sha256.Sum256([]byte(accessToken))
+			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]))
+		}
 	default:
 		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code' and 'refresh_token' are supported", http.StatusBadRequest)
 		return
@@ -115,7 +132,7 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var bytes, err = json.Marshal(TokenResponse{
 		AccessToken:  accessToken,
 		TokenType:    "Bearer",
-		ExpiresIn:    j.tokenService.AccessTokenTTL(),
+		ExpiresIn:    t.tokenService.AccessTokenTTL(),
 		RefreshToken: refreshToken,
 		IDToken:      idToken,
 	})
@@ -129,11 +146,12 @@ func (j *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
-func TokenHandler(tokenService TokenCreator, peopleStore people.Store, clients Clients, disablePKCE bool) http.Handler {
+func TokenHandler(tokenService TokenCreator, peopleStore people.Store, clients Clients, disablePKCE, refreshTokenRotation bool) http.Handler {
 	return &tokenHandler{
-		tokenService: tokenService,
-		clients:      clients,
-		disablePKCE:  disablePKCE,
-		peopleStore:  peopleStore,
+		tokenService:         tokenService,
+		clients:              clients,
+		disablePKCE:          disablePKCE,
+		peopleStore:          peopleStore,
+		refreshTokenRotation: refreshTokenRotation,
 	}
 }

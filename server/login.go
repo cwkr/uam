@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	FieldUserID        = "user_id"
-	FieldPasswordPlain = "password_plain"
+	FieldUserID   = "user_id"
+	FieldPassword = "password"
 )
 
 //go:embed templates/login.gohtml
@@ -38,7 +38,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		userID = r.PostFormValue(FieldUserID)
-		password = r.PostFormValue(FieldPasswordPlain)
+		password = r.PostFormValue(FieldPassword)
 		if stringutil.IsAnyEmpty(userID, password) {
 			message = "username and password must not be empty"
 		} else {
@@ -50,7 +50,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
-				log.Printf("userID = %s", realUserID)
+				log.Printf("userID=%s", realUserID)
 				httputil.RedirectQuery(w, r, strings.TrimRight(j.settings.Issuer, "/")+"/authorize", r.URL.Query())
 				return
 			} else {
@@ -68,7 +68,6 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"query":   template.HTML("?" + r.URL.RawQuery),
 		"message": message,
 		"userID":  userID,
-		"title":   j.settings.Title,
 	})
 	if err != nil {
 		htmlutil.Error(w, err.Error(), http.StatusInternalServerError)

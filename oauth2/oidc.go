@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+const OIDCDefaultScope = "openid profile email"
+
 type DiscoveryDocument struct {
 	Issuer                                     string   `json:"issuer"`
 	AuthorizationEndpoint                      string   `json:"authorization_endpoint"`
@@ -16,10 +18,12 @@ type DiscoveryDocument struct {
 	GrantTypesSupported                        []string `json:"grant_types_supported"`
 	TokenEndpoint                              string   `json:"token_endpoint"`
 	UserinfoEndpoint                           string   `json:"userinfo_endpoint"`
+	EndSessionEndpoint                         string   `json:"end_session_endpoint"`
 	ScopesSupported                            []string `json:"scopes_supported"`
 	TokenEndpointAuthMethodsSupported          []string `json:"token_endpoint_auth_methods_supported"`
 	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported"`
 	CodeChallengeMethodsSupported              []string `json:"code_challenge_methods_supported,omitempty"`
+	IDTokenSigningAlgValuesSupported           []string `json:"id_token_signing_alg_values_supported"`
 }
 
 type discoveryDocumentHandler struct {
@@ -50,9 +54,11 @@ func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		GrantTypesSupported:               []string{"authorization_code", "implicit", "refresh_token"},
 		TokenEndpoint:                     baseURL + "/token",
 		UserinfoEndpoint:                  baseURL + "/userinfo",
+		EndSessionEndpoint:                baseURL + "/logout",
 		ScopesSupported:                   strings.Fields(d.scope),
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic", "client_secret_post"},
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256"},
+		IDTokenSigningAlgValuesSupported:           []string{"RS256"},
 	}
 	if !d.disablePKCE {
 		discoveryDocument.CodeChallengeMethodsSupported = []string{"S256"}

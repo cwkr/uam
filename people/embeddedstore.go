@@ -22,13 +22,9 @@ type embeddedStore struct {
 }
 
 func NewEmbeddedStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionTTL int64) Store {
-	var lowerCaseUsers = make(map[string]AuthenticPerson)
-	for userID, authenticPerson := range users {
-		lowerCaseUsers[strings.ToLower(userID)] = authenticPerson
-	}
 	return &embeddedStore{
 		sessionStore: sessionStore,
-		users:        lowerCaseUsers,
+		users:        users,
 		sessionName:  sessionName,
 		sessionTTL:   sessionTTL,
 	}

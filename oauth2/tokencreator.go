@@ -16,7 +16,9 @@ const (
 	GrantTypeRefreshToken      = "refresh_token"
 
 	TokenTypeCode         = "code"
-	TokenTypeRefreshToken = "refresh_token"
+	TokenTypeRefreshToken = "refresh"
+	TokenTypeAccessToken  = "at"
+	TokenTypeIDToken      = "id"
 	ResponseTypeCode      = "code"
 	ResponseTypeToken     = "token"
 )
@@ -64,6 +66,7 @@ func (t tokenCreator) GenerateAccessToken(user User, scope string) (string, erro
 	var claims = map[string]any{
 		ClaimIssuer:         t.issuer,
 		ClaimSubject:        user.UserID,
+		ClaimType:           TokenTypeAccessToken,
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + t.accessTokenTTL,
@@ -81,6 +84,7 @@ func (t tokenCreator) GenerateIDToken(user User, clientID, scope, accessTokenHas
 	var claims = map[string]any{
 		ClaimIssuer:          t.issuer,
 		ClaimSubject:         user.UserID,
+		ClaimType:            TokenTypeIDToken,
 		ClaimIssuedAtTime:    now,
 		ClaimNotBeforeTime:   now,
 		ClaimExpirationTime:  now + t.idTokenTTL,

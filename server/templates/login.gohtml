@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>{{ .title }} - Login</title>
+    <title>Auth Server - Login</title>
     <link rel="stylesheet" href="/style">
 </head>
 <body>
@@ -11,7 +11,7 @@
 {{ end }}
 <form method="post" action="{{ .query }}" style="width: 240px; max-width: 100%; margin: 0 auto; display: flex; flex-direction: column;">
     <input type="text" name="user_id" placeholder="Username"{{ with .userID }} value="{{ . }}" {{ end }}autofocus>
-    <input type="password" name="password_plain" placeholder="Password">
+    <input type="password" name="password" placeholder="Password">
     <button type="submit" style="margin: 1em auto;">Login</button>
 </form>
 </body>

@@ -1,7 +1,7 @@
 package oauth2
 
 import (
-	"errors"
+	"fmt"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"log"
 	"time"
@@ -26,8 +26,8 @@ func (t tokenCreator) VerifyAccessToken(rawToken string) (string, error) {
 		log.Printf("!!! %s", err)
 		return "", err
 	}
-	if tokenData.Type == TokenTypeRefreshToken || tokenData.Type == TokenTypeCode {
-		err = errors.New("auth code or refresh token used as access token")
+	if tokenData.Type != TokenTypeAccessToken {
+		err = fmt.Errorf("token type must be %s but was %s", TokenTypeAccessToken, tokenData.Type)
 		log.Printf("!!! %s", err)
 		return "", err
 	}

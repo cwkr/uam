@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/cwkr/auth-server/htmlutil"
+	"github.com/cwkr/auth-server/oauth2"
 	"github.com/gorilla/sessions"
 	"log"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 type logoutHandler struct {
 	settings     *Settings
 	sessionStore sessions.Store
+	clients      oauth2.Clients
 }
 
 func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -24,12 +26,12 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if redirectURI != "" {
-		if _, clientExists := l.settings.Clients[clientID]; !clientExists {
+		if _, clientExists := l.clients[strings.ToLower(clientID)]; !clientExists {
 			htmlutil.Error(w, "Redirect URI requires valid Client ID", http.StatusBadRequest)
 			return
 		}
 
-		if client, found := l.settings.Clients[clientID]; found && client.RedirectURIPattern != "" {
+		if client, found := l.clients[strings.ToLower(clientID)]; found && client.RedirectURIPattern != "" {
 			if !regexp.MustCompile(client.RedirectURIPattern).MatchString(redirectURI) {
 				htmlutil.Error(w, "Redirect URI does not match Clients redirect URI patterns", http.StatusBadRequest)
 				return
@@ -52,9 +54,10 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, redirectURI, http.StatusFound)
 }
 
-func LogoutHandler(settings *Settings, sessionStore sessions.Store) http.Handler {
+func LogoutHandler(settings *Settings, sessionStore sessions.Store, clients oauth2.Clients) http.Handler {
 	return &logoutHandler{
 		settings:     settings,
 		sessionStore: sessionStore,
+		clients:      clients,
 	}
 }

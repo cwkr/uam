@@ -25,6 +25,7 @@ type indexHandler struct {
 	settings    *Settings
 	peopleStore people.Store
 	publicKey   *rsa.PublicKey
+	scope       string
 	usePKCE     bool
 }
 
@@ -52,9 +53,8 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"issuer":         strings.TrimRight(i.settings.Issuer, "/"),
 		"public_key":     string(pubBytes),
 		"state":          fmt.Sprint(rand.Int()),
-		"scope":          i.settings.Scope,
+		"scope":          i.scope,
 		"clients":        i.settings.Clients,
-		"title":          i.settings.Title,
 		"user_id":        userID,
 		"login_start":    loginStart,
 		"login_expiry":   loginExpiry,
@@ -68,10 +68,11 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func IndexHandler(settings *Settings, peopleStore people.Store, usePKCE bool) http.Handler {
+func IndexHandler(settings *Settings, peopleStore people.Store, scope string, usePKCE bool) http.Handler {
 	return &indexHandler{
 		settings:    settings,
 		peopleStore: peopleStore,
+		scope:       scope,
 		usePKCE:     usePKCE,
 	}
 }

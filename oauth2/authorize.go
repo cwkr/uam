@@ -39,7 +39,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var (
 		responseType    = strings.ToLower(strings.TrimSpace(r.FormValue("response_type")))
-		clientID        = strings.TrimSpace(r.FormValue("client_id"))
+		clientID        = strings.ToLower(strings.TrimSpace(r.FormValue("client_id")))
 		redirectURI     = strings.TrimSpace(r.FormValue("redirect_uri"))
 		state           = strings.TrimSpace(r.FormValue("state"))
 		scope           = strings.TrimSpace(r.FormValue("scope"))

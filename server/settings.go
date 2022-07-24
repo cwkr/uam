@@ -15,63 +15,40 @@ import (
 )
 
 type Settings struct {
-	Issuer                 string                            `json:"issuer"`
-	Port                   int                               `json:"port"`
-	Title                  string                            `json:"title"`
-	Users                  map[string]people.AuthenticPerson `json:"users"`
-	Key                    string                            `json:"key"`
-	AdditionalKeys         []string                          `json:"additional_keys,omitempty"`
-	Clients                oauth2.Clients                    `json:"clients"`
-	Scope                  string                            `json:"scope"`
-	AccessTokenExtraClaims map[string]string                 `json:"access_token_extra_claims"`
-	AccessTokenTTL         int                               `json:"access_token_ttl"`
-	RefreshTokenTTL        int                               `json:"refresh_token_ttl"`
-	IDTokenTTL             int                               `json:"id_token_ttl"`
-	IDTokenExtraClaims     map[string]string                 `json:"id_token_extra_claims"`
-	SessionSecret          string                            `json:"session_secret"`
-	SessionName            string                            `json:"session_name"`
-	SessionTTL             int                               `json:"session_ttl"`
-	DisablePKCE            bool                              `json:"disable_pkce"`
-	PeopleStore            *people.StoreSettings             `json:"people_store,omitempty"`
-	DisablePeopleAPI       bool                              `json:"disable_people_api,omitempty"`
-	rsaSigningKey          *rsa.PrivateKey
-	rsaSigningKeyID        string
-	rsaAdditionalKeys      map[string]*rsa.PublicKey
+	Issuer                     string                            `json:"issuer"`
+	Port                       int                               `json:"port"`
+	Users                      map[string]people.AuthenticPerson `json:"users"`
+	Key                        string                            `json:"key"`
+	AdditionalKeys             []string                          `json:"additional_keys,omitempty"`
+	Clients                    oauth2.Clients                    `json:"clients"`
+	ExtraScope                 string                            `json:"extra_scope,omitempty"`
+	AccessTokenExtraClaims     map[string]string                 `json:"access_token_extra_claims"`
+	AccessTokenTTL             int                               `json:"access_token_ttl"`
+	RefreshTokenTTL            int                               `json:"refresh_token_ttl"`
+	IDTokenTTL                 int                               `json:"id_token_ttl"`
+	IDTokenExtraClaims         map[string]string                 `json:"id_token_extra_claims"`
+	SessionSecret              string                            `json:"session_secret"`
+	SessionName                string                            `json:"session_name"`
+	SessionTTL                 int                               `json:"session_ttl"`
+	DisablePKCE                bool                              `json:"disable_pkce"`
+	EnableRefreshTokenRotation bool                              `json:"enable_refresh_token_rotation"`
+	PeopleStore                *people.StoreSettings             `json:"people_store,omitempty"`
+	DisablePeopleAPI           bool                              `json:"disable_people_api,omitempty"`
+	rsaSigningKey              *rsa.PrivateKey
+	rsaSigningKeyID            string
+	rsaAdditionalKeys          map[string]*rsa.PublicKey
 }
 
 func NewDefaultSettings() *Settings {
 	return &Settings{
-		Issuer: "http://localhost:6080/",
-		Port:   6080,
-		Title:  "Auth Server",
-		Users: map[string]people.AuthenticPerson{
-			"user": {
-				Person: people.Person{
-					GivenName:  "First Name",
-					FamilyName: "Last Name",
-					Email:      "email@example.org",
-					Groups:     []string{"users"},
-				},
-				PasswordHash: "$2a$12$yos0Nv/lfhjKjJ7CSmkCteSJRmzkirYwGFlBqeY4ss3o3nFSb5WDy",
-			},
-		},
-		Clients: oauth2.Clients{
-			"app": oauth2.Client{
-				RedirectURIPattern: "https?:\\/\\/localhost(:\\d+)?\\/",
-			},
-		},
+		Issuer:          "http://localhost:6080/",
+		Port:            6080,
 		AccessTokenTTL:  3_600,
 		RefreshTokenTTL: 28_800,
 		IDTokenTTL:      28_800,
-		AccessTokenExtraClaims: map[string]string{
-			"prn":   "$user_id",
-			"email": "$email",
-		},
-		IDTokenExtraClaims: map[string]string{},
-		Scope:              "profile email",
-		SessionName:        "ASESSION",
-		SessionSecret:      stringutil.RandomBytesString(32),
-		SessionTTL:         28_800,
+		SessionName:     "ASESSION",
+		SessionSecret:   stringutil.RandomBytesString(32),
+		SessionTTL:      28_800,
 	}
 }
 
