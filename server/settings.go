@@ -79,7 +79,8 @@ func (s *Settings) LoadKeys(basePath string, genNew bool) error {
 			}
 		}
 	} else {
-		pemBytes, err := os.ReadFile(filepath.Join(basePath, s.Key[1:]))
+		var filename = filepath.Join(basePath, s.Key[1:])
+		pemBytes, err := os.ReadFile(filename)
 		if err != nil {
 			return err
 		}
@@ -88,7 +89,7 @@ func (s *Settings) LoadKeys(basePath string, genNew bool) error {
 		if err != nil {
 			return err
 		}
-		s.rsaSigningKeyID = strings.TrimSuffix(filepath.Base(s.Key), filepath.Ext(s.Key))
+		s.rsaSigningKeyID = strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
 	}
 
 	s.rsaAdditionalKeys, err = oauth2.LoadPublicKeys(basePath, s.AdditionalKeys)

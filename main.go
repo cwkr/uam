@@ -38,12 +38,15 @@ func main() {
 	// Set defaults
 	settings = server.NewDefaultSettings()
 
+	log.Printf("Loading config file %s", settingsFilename)
 	configBytes, err := os.ReadFile(settingsFilename)
 	if err == nil {
 		err = json.Unmarshal(configBytes, settings)
 		if err != nil {
 			panic(err)
 		}
+	} else {
+		log.Printf("%v", err)
 	}
 
 	err = settings.LoadKeys(filepath.Dir(settingsFilename), saveSettings)

@@ -55,12 +55,13 @@ func LoadPublicKeys(basePath string, keys []string) (map[string]*rsa.PublicKey, 
 			block, _ = pem.Decode([]byte(key))
 			kid = fmt.Sprintf("key%d", i+1)
 		} else if strings.HasPrefix(key, "@") {
-			bytes, err := os.ReadFile(filepath.Join(basePath, key[1:]))
+			var filename = filepath.Join(basePath, key[1:])
+			bytes, err := os.ReadFile(filename)
 			if err != nil {
 				return nil, err
 			}
 			block, _ = pem.Decode(bytes)
-			kid = strings.TrimSuffix(filepath.Base(key), filepath.Ext(key))
+			kid = strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
 		} else {
 			return nil, errors.New("cannot load key")
 		}

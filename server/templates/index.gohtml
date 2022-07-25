@@ -44,7 +44,7 @@
         <button type="submit">Logout</button>
     </form>
 {{- end }}
-<h2>OAuth2</h2>
+<h2>Test</h2>
 <form method="get" action="{{ .issuer }}/authorize" onsubmit="remember()">
     <input type="hidden" name="redirect_uri" value="{{ .issuer }}/">
     <input type="hidden" id="state" name="state" value="{{ .state }}">
@@ -67,25 +67,18 @@
     </select>
     <button type="submit">Get token</button>
 </form>
+<h3>Access token</h3>
 <pre style="white-space: pre-wrap; word-wrap: break-word;" title="access_token"><code id="access_token_output"></code></pre>
+<h3>Refresh token</h3>
+<pre style="white-space: pre-wrap; word-wrap: break-word;" title="refresh_token"><code id="refresh_token_output"></code></pre>
+<h3>Id token</h3>
 <pre style="white-space: pre-wrap; word-wrap: break-word;" title="id_token"><code id="id_token_output"></code></pre>
+
 <h2>Public Key</h2>
 <div>
     <a href="{{ .issuer }}/jwks">JSON Web Key Set</a>
 </div>
 <pre><code>{{ .public_key }}</code></pre>
-<h2>Spring Boot</h2>
-<h3>Maven dependency</h3>
-<pre style="white-space: pre-wrap; word-wrap: break-word;">
-<strong>&lt;dependency&gt;</strong>
-    <strong>&lt;groupId&gt;</strong>org.springframework.boot<strong>&lt;/groupId&gt;</strong>
-    <strong>&lt;artifactId&gt;</strong>spring-boot-starter-oauth2-resource-server<strong>&lt;/artifactId&gt;</strong>
-<strong>&lt;/dependency&gt;</strong>
-</pre>
-<h3>Configuration property</h3>
-<pre style="white-space: pre-wrap; word-wrap: break-word;">
-<strong>spring.security.oauth2.resourceserver.jwt.jwk-set-uri</strong>={{ .issuer }}/jwks
-</pre>
 
 <script>
     const rememberedResponseType = sessionStorage.getItem("response_type");
@@ -130,6 +123,7 @@
             })
             .then(data => {
                 document.getElementById("access_token_output").textContent = data.access_token;
+                document.getElementById("refresh_token_output").textContent = data.refresh_token;
                 document.getElementById("id_token_output").textContent = data.id_token;
                 sessionStorage.removeItem('client_id'+urlParams.get("state"));
                 {{- if .pkce }}

@@ -15,6 +15,7 @@ COPY --from=build /src/auth-server /bin/auth-server
 
 EXPOSE 6080
 
-USER nonroot:nonroot
+VOLUME /etc/auth-server
 
-ENTRYPOINT ["/bin/auth-server", "-config", "/etc/auth-server/auth-server-json"]
+ENTRYPOINT ["/bin/auth-server"]
+CMD ["-config", "/etc/auth-server/auth-server.json"]
