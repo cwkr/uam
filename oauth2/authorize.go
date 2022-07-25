@@ -85,8 +85,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
-		w.Header().Set("Pragma", "no-cache")
+		httputil.NoCache(w)
 		httputil.RedirectFragment(w, r, redirectURI, url.Values{
 			"access_token": {x},
 			"token_type":   {"Bearer"},
@@ -104,8 +103,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
-		w.Header().Set("Pragma", "no-cache")
+		httputil.NoCache(w)
 		httputil.RedirectQuery(w, r, redirectURI, url.Values{"code": {x}, "state": {state}})
 	default:
 		htmlutil.Error(w, ErrorUnsupportedGrantType, http.StatusBadRequest)

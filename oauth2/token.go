@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/cwkr/auth-server/httputil"
 	"github.com/cwkr/auth-server/oauth2/pkce"
 	"github.com/cwkr/auth-server/people"
 	"github.com/cwkr/auth-server/stringutil"
@@ -25,13 +26,9 @@ type tokenHandler struct {
 func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, POST")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Requested-With")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	httputil.AllowCORS(w, r, []string{http.MethodOptions, http.MethodPost}, true)
 
 	if r.Method == http.MethodOptions {
-		w.Header().Set("Allow", "OPTIONS, POST")
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -140,8 +137,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Error(w, ErrorInternal, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
-	w.Header().Set("Pragma", "no-cache")
+	httputil.NoCache(w)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(bytes)
 }

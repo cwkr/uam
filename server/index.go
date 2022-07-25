@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"github.com/cwkr/auth-server/htmlutil"
+	"github.com/cwkr/auth-server/httputil"
 	"github.com/cwkr/auth-server/oauth2/pkce"
 	"github.com/cwkr/auth-server/people"
 	"github.com/cwkr/auth-server/stringutil"
@@ -42,7 +43,7 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var userID, active = i.peopleStore.IsActiveSession(r)
 
-	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	httputil.NoCache(w)
 	var loginStart, loginExpiry string
 	if iat, exp := i.peopleStore.AuthenticationTime(r); active {
 		loginStart = iat.Format(time.RFC3339)

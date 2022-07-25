@@ -3,6 +3,7 @@ package oauth2
 import (
 	"encoding/json"
 	"github.com/cwkr/auth-server/htmlutil"
+	"github.com/cwkr/auth-server/httputil"
 	"log"
 	"net/http"
 	"strings"
@@ -35,12 +36,9 @@ type discoveryDocumentHandler struct {
 func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "X-Requested-With")
+	httputil.AllowCORS(w, r, []string{http.MethodGet, http.MethodOptions}, false)
 
 	if r.Method == http.MethodOptions {
-		w.Header().Set("Allow", "GET, OPTIONS")
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}

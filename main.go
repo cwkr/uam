@@ -38,7 +38,7 @@ func main() {
 	// Set defaults
 	settings = server.NewDefaultSettings()
 
-	log.Printf("Loading config file %s", settingsFilename)
+	log.Printf("Loading settings from %s", settingsFilename)
 	configBytes, err := os.ReadFile(settingsFilename)
 	if err == nil {
 		err = json.Unmarshal(configBytes, settings)
@@ -55,7 +55,7 @@ func main() {
 	}
 
 	if saveSettings {
-		log.Printf("Saving config file %s", settingsFilename)
+		log.Printf("Saving settings to %s", settingsFilename)
 		configJson, _ := json.MarshalIndent(settings, "", "  ")
 		if err := os.WriteFile(settingsFilename, configJson, 0644); err != nil {
 			panic(err)
@@ -113,6 +113,8 @@ func main() {
 	router.Handle("/login", server.LoginHandler(settings, peopleStore, sessionStore)).
 		Methods(http.MethodGet, http.MethodPost)
 	router.Handle("/logout", server.LogoutHandler(settings, sessionStore, clients))
+	router.Handle("/health", server.HealthHandler(peopleStore)).
+		Methods(http.MethodGet)
 
 	router.Handle("/jwks", oauth2.JwksHandler(settings.AllKeys())).
 		Methods(http.MethodGet, http.MethodOptions)

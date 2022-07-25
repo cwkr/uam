@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/cwkr/auth-server/httputil"
 	"github.com/go-jose/go-jose/v3"
 	"log"
 	"net/http"
@@ -22,12 +23,9 @@ type jwksHandler struct {
 func (j *jwksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "X-Requested-With")
+	httputil.AllowCORS(w, r, []string{http.MethodGet, http.MethodOptions}, false)
 
 	if r.Method == http.MethodOptions {
-		w.Header().Set("Allow", "GET, OPTIONS")
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -37,8 +35,7 @@ func (j *jwksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error marshaling: %s\n", err), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
-	w.Header().Set("Pragma", "no-cache")
+	httputil.NoCache(w)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(bytes)
 }

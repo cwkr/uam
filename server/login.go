@@ -59,8 +59,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
-	w.Header().Set("Pragma", "no-cache")
+	httputil.NoCache(w)
 	w.Header().Set("Content-Type", "text/html;charset=UTF-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	var err = t.ExecuteTemplate(w, "login", map[string]any{

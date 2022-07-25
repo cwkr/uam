@@ -1,7 +1,9 @@
 package server
 
 import (
+	"fmt"
 	"github.com/cwkr/auth-server/htmlutil"
+	"github.com/cwkr/auth-server/httputil"
 	"github.com/cwkr/auth-server/oauth2"
 	"github.com/gorilla/sessions"
 	"log"
@@ -25,7 +27,7 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		redirectURI = strings.TrimSpace(r.FormValue("redirect_uri"))
 	)
 
-	if redirectURI != "" {
+	if redirectURI != "" && !strings.HasPrefix(redirectURI, strings.TrimRight(l.settings.Issuer, "/")) {
 		if _, clientExists := l.clients[strings.ToLower(clientID)]; !clientExists {
 			htmlutil.Error(w, "Redirect URI requires valid Client ID", http.StatusBadRequest)
 			return
@@ -37,12 +39,10 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-	} else {
-		redirectURI = l.settings.Issuer
 	}
 
-	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
-	w.Header().Set("Pragma", "no-cache")
+	httputil.NoCache(w)
+
 	if !session.IsNew {
 		session.Options.MaxAge = -1
 		if err := session.Save(r, w); err != nil {
@@ -51,7 +51,13 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	http.Redirect(w, r, redirectURI, http.StatusFound)
+	if redirectURI != "" {
+		http.Redirect(w, r, redirectURI, http.StatusFound)
+	} else {
+		w.Header().Set("Content-Type", "text/html;charset=UTF-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		fmt.Fprintf(w, "<!DOCTYPE html><link rel=\"stylesheet\" href=\"/style\"><h1>Session terminated</h1>")
+	}
 }
 
 func LogoutHandler(settings *Settings, sessionStore sessions.Store, clients oauth2.Clients) http.Handler {

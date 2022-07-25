@@ -124,3 +124,7 @@ func (p databaseStore) Lookup(userID string) (*Person, error) {
 
 	return person, nil
 }
+
+func (p databaseStore) Ping() error {
+	return p.dbconn.Ping()
+}

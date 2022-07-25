@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"github.com/cwkr/auth-server/httputil"
 	"github.com/cwkr/auth-server/oauth2"
 	"github.com/cwkr/auth-server/people"
 	"github.com/gorilla/mux"
@@ -16,12 +17,9 @@ type peopleAPIHandler struct {
 func (p *peopleAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "X-Requested-With")
+	httputil.AllowCORS(w, r, []string{http.MethodGet, http.MethodOptions}, false)
 
 	if r.Method == http.MethodOptions {
-		w.Header().Set("Allow", "GET, OPTIONS")
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -34,7 +32,7 @@ func (p *peopleAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+		httputil.NoCache(w)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(bytes)
 	} else {

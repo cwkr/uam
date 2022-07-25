@@ -10,4 +10,5 @@ type Store interface {
 	IsActiveSession(r *http.Request) (string, bool)
 	AuthenticationTime(r *http.Request) (time.Time, time.Time)
 	Lookup(userID string) (*Person, error)
+	Ping() error
 }

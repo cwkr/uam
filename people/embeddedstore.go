@@ -75,3 +75,7 @@ func (e embeddedStore) Lookup(userID string) (*Person, error) {
 
 	return nil, ErrPersonNotFound
 }
+
+func (e embeddedStore) Ping() error {
+	return nil
+}

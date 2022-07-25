@@ -2,6 +2,7 @@ package oauth2
 
 import (
 	"encoding/json"
+	"github.com/cwkr/auth-server/httputil"
 	"net/http"
 )
 
@@ -37,10 +38,9 @@ const (
 )
 
 func Error(w http.ResponseWriter, error string, description string, code int) {
-	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
+	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
+	httputil.NoCache(w)
 
 	w.WriteHeader(code)
 	var bytes, _ = json.Marshal(ErrorResponse{error, description})
