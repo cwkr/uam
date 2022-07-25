@@ -43,7 +43,7 @@ func (j *jwksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
-func LoadPublicKeys(keys []string) (map[string]*rsa.PublicKey, error) {
+func LoadPublicKeys(basePath string, keys []string) (map[string]*rsa.PublicKey, error) {
 	var rsaPublicKeys = make(map[string]*rsa.PublicKey)
 
 	for i, key := range keys {
@@ -54,13 +54,15 @@ func LoadPublicKeys(keys []string) (map[string]*rsa.PublicKey, error) {
 		if strings.HasPrefix(key, "-----BEGIN ") {
 			block, _ = pem.Decode([]byte(key))
 			kid = fmt.Sprintf("key%d", i+1)
-		} else {
-			bytes, err := os.ReadFile(key)
+		} else if strings.HasPrefix(key, "@") {
+			bytes, err := os.ReadFile(filepath.Join(basePath, key[1:]))
 			if err != nil {
 				return nil, err
 			}
 			block, _ = pem.Decode(bytes)
 			kid = strings.TrimSuffix(filepath.Base(key), filepath.Ext(key))
+		} else {
+			return nil, errors.New("cannot load key")
 		}
 
 		var rsaPublicKey *rsa.PublicKey

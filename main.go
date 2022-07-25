@@ -15,6 +15,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -45,7 +46,7 @@ func main() {
 		}
 	}
 
-	err = settings.LoadKeys(saveSettings)
+	err = settings.LoadKeys(filepath.Dir(settingsFilename), saveSettings)
 	if err != nil {
 		panic(err)
 	}

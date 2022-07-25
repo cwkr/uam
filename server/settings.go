@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"github.com/cwkr/auth-server/fileutil"
 	"github.com/cwkr/auth-server/oauth2"
 	"github.com/cwkr/auth-server/people"
 	"github.com/cwkr/auth-server/stringutil"
@@ -52,7 +51,7 @@ func NewDefaultSettings() *Settings {
 	}
 }
 
-func (s *Settings) LoadKeys(genNew bool) error {
+func (s *Settings) LoadKeys(basePath string, genNew bool) error {
 	var err error
 	s.rsaSigningKeyID = "sigkey"
 	if strings.HasPrefix(s.Key, "-----BEGIN RSA PRIVATE KEY-----") {
@@ -61,7 +60,7 @@ func (s *Settings) LoadKeys(genNew bool) error {
 		if err != nil {
 			return err
 		}
-	} else if s.Key == "" || !fileutil.FileExists(s.Key) {
+	} else if s.Key == "" || !strings.HasPrefix(s.Key, "@") {
 		if !genNew && s.Key != "" {
 			return errors.New("missing key")
 		}
@@ -80,7 +79,7 @@ func (s *Settings) LoadKeys(genNew bool) error {
 			}
 		}
 	} else {
-		pemBytes, err := os.ReadFile(s.Key)
+		pemBytes, err := os.ReadFile(filepath.Join(basePath, s.Key[1:]))
 		if err != nil {
 			return err
 		}
@@ -92,7 +91,7 @@ func (s *Settings) LoadKeys(genNew bool) error {
 		s.rsaSigningKeyID = strings.TrimSuffix(filepath.Base(s.Key), filepath.Ext(s.Key))
 	}
 
-	s.rsaAdditionalKeys, err = oauth2.LoadPublicKeys(s.AdditionalKeys)
+	s.rsaAdditionalKeys, err = oauth2.LoadPublicKeys(basePath, s.AdditionalKeys)
 	return err
 }
 

@@ -22,7 +22,7 @@ func main() {
 	flag.IntVar(&keySize, "size", 2048, "key size")
 	flag.Parse()
 
-	if keySize < 512 {
+	if keySize < 1024 {
 		panic("key size less than 512")
 	}
 
