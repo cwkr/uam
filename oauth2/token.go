@@ -93,7 +93,9 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var user = User{Person: *person, UserID: userID}
 		timing.Start("jwtgen")
 		accessToken, _ = t.tokenService.GenerateAccessToken(user, scope)
-		refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope)
+		if strings.Contains(scope, "offline_access") {
+			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope)
+		}
 		if strings.Contains(scope, "openid") {
 			var hash = sha256.Sum256([]byte(accessToken))
 			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]))
@@ -119,7 +121,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var user = User{Person: *person, UserID: userID}
 		timing.Start("jwtgen")
 		accessToken, _ = t.tokenService.GenerateAccessToken(user, scope)
-		if t.refreshTokenRotation {
+		if t.refreshTokenRotation && strings.Contains(scope, "offline_access") {
 			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope)
 		} else {
 			refreshToken = ""

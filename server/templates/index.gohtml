@@ -9,11 +9,13 @@
             const state = document.getElementById("state").value;
             const clientId = document.getElementById("client_id").value;
             const responseType = document.getElementById("response_type").value;
+            const scope = document.getElementById("scope").value;
             {{- if .pkce }}
             const codeVerifier = document.getElementById("code_verifier").value;
             {{- end }}
             sessionStorage.setItem("client_id", clientId);
             sessionStorage.setItem("response_type", responseType);
+            sessionStorage.setItem("scope", scope);
             if (responseType === "code") {
                 sessionStorage.setItem('client_id'+state, clientId);
                 {{- if .pkce }}
@@ -48,7 +50,6 @@
 <form method="get" action="{{ .issuer }}/authorize" onsubmit="remember()">
     <input type="hidden" name="redirect_uri" value="{{ .issuer }}/">
     <input type="hidden" id="state" name="state" value="{{ .state }}">
-    <input type="hidden" id="scope" name="scope" value="{{ .scope }}">
 {{- if .pkce }}
     <input type="hidden" id="code_verifier" name="code_verifier" value="{{ .code_verifier }}" disabled>
     <input type="hidden" id="code_challenge" name="code_challenge" value="{{ .code_challenge }}" disabled>
@@ -65,14 +66,31 @@
             <option value="{{ . }}">{{ . }}</option>
         {{- end }}
     </select>
+    <label for="scope">Scope</label>
+    <select id="scope" name="scope">
+        <option value="profile">profile</option>
+        <option value="email">email</option>
+        <option value="offline_access">offline_access</option>
+        <option value="openid">openid</option>
+        <option value="openid profile">openid profile</option>
+        <option value="openid profile email">openid profile email</option>
+        <option value="openid profile email offline_access">openid profile email offline_access</option>
+        <option value="{{ .scope }}">{{ .scope }}</option>
+    </select>
     <button type="submit">Get token</button>
 </form>
-<h3>Access token</h3>
-<pre style="white-space: pre-wrap; word-wrap: break-word;" title="access_token"><code id="access_token_output"></code></pre>
-<h3>Refresh token</h3>
-<pre style="white-space: pre-wrap; word-wrap: break-word;" title="refresh_token"><code id="refresh_token_output"></code></pre>
-<h3>Id token</h3>
-<pre style="white-space: pre-wrap; word-wrap: break-word;" title="id_token"><code id="id_token_output"></code></pre>
+<div id="access_token_panel" style="display: none;">
+    <h3>Access token</h3>
+    <pre style="white-space: pre-wrap; word-wrap: break-word;"><code id="access_token_output"></code></pre>
+</div>
+<div id="refresh_token_panel" style="display: none;">
+    <h3>Refresh token</h3>
+    <pre style="white-space: pre-wrap; word-wrap: break-word;"><code id="refresh_token_output"></code></pre>
+</div>
+<div id="id_token_panel" style="display: none;">
+    <h3>Id token</h3>
+    <pre style="white-space: pre-wrap; word-wrap: break-word;"><code id="id_token_output"></code></pre>
+</div>
 
 <h2>Public Key</h2>
 <div>
@@ -94,6 +112,11 @@
         document.getElementById("client_id").value = rememberedClientId;
     }
 
+    const rememberedScope = sessionStorage.getItem("scope");
+    if (rememberedScope) {
+        document.getElementById("scope").value = rememberedScope;
+    }
+
     let urlParams = new URLSearchParams();
     const hash = window.location.hash.substring(1);
     if (hash) {
@@ -103,6 +126,7 @@
     }
     if (urlParams.has("access_token") === true) {
         document.getElementById("access_token_output").textContent = urlParams.get("access_token");
+        document.getElementById("access_token_panel").style.display = 'block';
     } else if (urlParams.has("code") === true) {
         const postParams = new URLSearchParams({
             "grant_type": "authorization_code",
@@ -122,9 +146,18 @@
                 return resp.json();
             })
             .then(data => {
-                document.getElementById("access_token_output").textContent = data.access_token;
-                document.getElementById("refresh_token_output").textContent = data.refresh_token;
-                document.getElementById("id_token_output").textContent = data.id_token;
+                if (data.access_token) {
+                    document.getElementById("access_token_output").textContent = data.access_token;
+                    document.getElementById("access_token_panel").style.display = 'block';
+                }
+                if (data.refresh_token) {
+                    document.getElementById("refresh_token_output").textContent = data.refresh_token;
+                    document.getElementById("refresh_token_panel").style.display = 'block';
+                }
+                if (data.id_token) {
+                    document.getElementById("id_token_output").textContent = data.id_token;
+                    document.getElementById("id_token_panel").style.display = 'block';
+                }
                 sessionStorage.removeItem('client_id'+urlParams.get("state"));
                 {{- if .pkce }}
                 sessionStorage.removeItem('code_verifier'+urlParams.get("state"));

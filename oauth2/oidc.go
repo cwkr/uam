@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const OIDCDefaultScope = "openid profile email"
+const OIDCDefaultScope = "openid profile email offline_access"
 
 type DiscoveryDocument struct {
 	Issuer                                     string   `json:"issuer"`
