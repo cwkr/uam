@@ -38,6 +38,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
 	var (
+		timing          = httputil.NewTiming()
 		responseType    = strings.ToLower(strings.TrimSpace(r.FormValue("response_type")))
 		clientID        = strings.ToLower(strings.TrimSpace(r.FormValue("client_id")))
 		redirectURI     = strings.TrimSpace(r.FormValue("redirect_uri"))
@@ -49,12 +50,14 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if uid, active := a.peopleStore.IsActiveSession(r); active {
+		timing.Start("store")
 		if person, err := a.peopleStore.Lookup(uid); err == nil {
 			user = User{UserID: uid, Person: *person}
 		} else {
 			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		timing.Stop("store")
 	} else {
 		httputil.RedirectQuery(w, r, strings.TrimRight(a.tokenService.Issuer(), "/")+"/login", r.URL.Query())
 		return
@@ -79,13 +82,16 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch responseType {
 	case ResponseTypeToken:
+		timing.Start("jwtgen")
 		var x, err = a.tokenService.GenerateAccessToken(user, IntersectScope(a.scope, scope))
 		if err != nil {
 			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		timing.Stop("jwtgen")
 
 		httputil.NoCache(w)
+		timing.Report(w)
 		httputil.RedirectFragment(w, r, redirectURI, url.Values{
 			"access_token": {x},
 			"token_type":   {"Bearer"},
@@ -97,13 +103,16 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			htmlutil.Error(w, "code_challenge and code_challenge_method=S256 required for PKCE", http.StatusInternalServerError)
 			return
 		}
+		timing.Start("jwtgen")
 		var x, err = a.tokenService.GenerateAuthCode(user.UserID, clientID, IntersectScope(a.scope, scope), challenge)
 		if err != nil {
 			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		timing.Stop("jwtgen")
 
 		httputil.NoCache(w)
+		timing.Report(w)
 		httputil.RedirectQuery(w, r, redirectURI, url.Values{"code": {x}, "state": {state}})
 	default:
 		htmlutil.Error(w, ErrorUnsupportedGrantType, http.StatusBadRequest)

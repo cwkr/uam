@@ -33,8 +33,8 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// parse parameters
 	var (
+		timing                            = httputil.NewTiming()
 		clientID, clientSecret, basicAuth = r.BasicAuth()
 		grantType                         = strings.ToLower(strings.TrimSpace(r.PostFormValue("grant_type")))
 		code                              = strings.TrimSpace(r.PostFormValue("code"))
@@ -83,18 +83,22 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error(w, ErrorInvalidGrant, "invalid auth code", http.StatusBadRequest)
 			return
 		}
+		timing.Start("store")
 		var person, err = t.peopleStore.Lookup(userID)
 		if err != nil {
 			Error(w, ErrorInternal, "person not found", http.StatusInternalServerError)
 			return
 		}
+		timing.Stop("store")
 		var user = User{Person: *person, UserID: userID}
+		timing.Start("jwtgen")
 		accessToken, _ = t.tokenService.GenerateAccessToken(user, scope)
 		refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope)
 		if strings.Contains(scope, "openid") {
 			var hash = sha256.Sum256([]byte(accessToken))
 			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]))
 		}
+		timing.Stop("jwtgen")
 	case GrantTypeRefreshToken:
 		if stringutil.IsAnyEmpty(clientID, refreshToken) {
 			Error(w, ErrorInvalidRequest, "client_id and refresh_token parameters are required", http.StatusBadRequest)
@@ -105,12 +109,15 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error(w, ErrorInvalidGrant, "invalid refresh_token", http.StatusBadRequest)
 			return
 		}
+		timing.Start("store")
 		var person, err = t.peopleStore.Lookup(userID)
 		if err != nil {
 			Error(w, ErrorInternal, "person not found", http.StatusInternalServerError)
 			return
 		}
+		timing.Stop("store")
 		var user = User{Person: *person, UserID: userID}
+		timing.Start("jwtgen")
 		accessToken, _ = t.tokenService.GenerateAccessToken(user, scope)
 		if t.refreshTokenRotation {
 			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope)
@@ -121,6 +128,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var hash = sha256.Sum256([]byte(accessToken))
 			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]))
 		}
+		timing.Stop("jwtgen")
 	default:
 		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code' and 'refresh_token' are supported", http.StatusBadRequest)
 		return
@@ -138,6 +146,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httputil.NoCache(w)
+	timing.Report(w)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(bytes)
 }
