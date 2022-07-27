@@ -74,7 +74,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error(w, ErrorInvalidRequest, "client_id, code and code_verifier parameters are required", http.StatusBadRequest)
 			return
 		}
-		var userID, scope, challenge, valid = t.tokenService.VerifyAuthCode(code)
+		var userID, scope, challenge, nonce, valid = t.tokenService.VerifyAuthCode(code)
 		if !t.disablePKCE && !pkce.Verify(challenge, codeVerifier) {
 			Error(w, ErrorInvalidGrant, "invalid challenge", http.StatusBadRequest)
 			return
@@ -94,11 +94,11 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Start("jwtgen")
 		accessToken, _ = t.tokenService.GenerateAccessToken(user, scope)
 		if strings.Contains(scope, "offline_access") {
-			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope)
+			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope, nonce)
 		}
 		if strings.Contains(scope, "openid") {
 			var hash = sha256.Sum256([]byte(accessToken))
-			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]))
+			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]), nonce)
 		}
 		timing.Stop("jwtgen")
 	case GrantTypeRefreshToken:
@@ -106,7 +106,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error(w, ErrorInvalidRequest, "client_id and refresh_token parameters are required", http.StatusBadRequest)
 			return
 		}
-		var userID, scope, valid = t.tokenService.VerifyRefreshToken(refreshToken)
+		var userID, scope, nonce, valid = t.tokenService.VerifyRefreshToken(refreshToken)
 		if !valid {
 			Error(w, ErrorInvalidGrant, "invalid refresh_token", http.StatusBadRequest)
 			return
@@ -122,13 +122,13 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Start("jwtgen")
 		accessToken, _ = t.tokenService.GenerateAccessToken(user, scope)
 		if t.refreshTokenRotation && strings.Contains(scope, "offline_access") {
-			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope)
+			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope, nonce)
 		} else {
 			refreshToken = ""
 		}
 		if strings.Contains(scope, "openid") {
 			var hash = sha256.Sum256([]byte(accessToken))
-			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]))
+			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]), nonce)
 		}
 		timing.Stop("jwtgen")
 	default:

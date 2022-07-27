@@ -46,6 +46,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		scope           = strings.TrimSpace(r.FormValue("scope"))
 		challenge       = strings.TrimSpace(r.FormValue("code_challenge"))
 		challengeMethod = strings.TrimSpace(r.FormValue("code_challenge_method"))
+		nonce           = strings.TrimSpace(r.FormValue("nonce"))
 		user            User
 	)
 
@@ -104,7 +105,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		timing.Start("jwtgen")
-		var x, err = a.tokenService.GenerateAuthCode(user.UserID, clientID, IntersectScope(a.scope, scope), challenge)
+		var x, err = a.tokenService.GenerateAuthCode(user.UserID, clientID, IntersectScope(a.scope, scope), challenge, nonce)
 		if err != nil {
 			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 			return

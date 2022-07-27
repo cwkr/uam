@@ -31,11 +31,11 @@ type User struct {
 type TokenCreator interface {
 	TokenVerifier
 	GenerateAccessToken(user User, scope string) (string, error)
-	GenerateIDToken(user User, clientID, scope, accessTokenHash string) (string, error)
-	GenerateAuthCode(userID, clientID, scope, challenge string) (string, error)
-	GenerateRefreshToken(userID, clientID, scope string) (string, error)
-	VerifyAuthCode(rawToken string) (userID, scope, challenge string, valid bool)
-	VerifyRefreshToken(rawToken string) (userID, scope string, valid bool)
+	GenerateIDToken(user User, clientID, scope, accessTokenHash, nonce string) (string, error)
+	GenerateAuthCode(userID, clientID, scope, challenge, nonce string) (string, error)
+	GenerateRefreshToken(userID, clientID, scope, nonce string) (string, error)
+	VerifyAuthCode(rawToken string) (userID, scope, challenge, nonce string, valid bool)
+	VerifyRefreshToken(rawToken string) (userID, scope, nonce string, valid bool)
 	AccessTokenTTL() int64
 	Issuer() string
 }
@@ -78,7 +78,7 @@ func (t tokenCreator) GenerateAccessToken(user User, scope string) (string, erro
 	return jwt.Signed(t.signer).Claims(claims).CompactSerialize()
 }
 
-func (t tokenCreator) GenerateIDToken(user User, clientID, scope, accessTokenHash string) (string, error) {
+func (t tokenCreator) GenerateIDToken(user User, clientID, scope, accessTokenHash, nonce string) (string, error) {
 	var now = time.Now().Unix()
 
 	var claims = map[string]any{
@@ -90,6 +90,7 @@ func (t tokenCreator) GenerateIDToken(user User, clientID, scope, accessTokenHas
 		ClaimExpirationTime:  now + t.idTokenTTL,
 		ClaimAudience:        clientID,
 		ClaimAccessTokenHash: accessTokenHash,
+		ClaimNonce:           nonce,
 	}
 
 	if strings.Contains(scope, "profile") {
@@ -103,7 +104,7 @@ func (t tokenCreator) GenerateIDToken(user User, clientID, scope, accessTokenHas
 	return jwt.Signed(t.signer).Claims(claims).CompactSerialize()
 }
 
-func (t tokenCreator) GenerateAuthCode(userID, clientID, scope, challenge string) (string, error) {
+func (t tokenCreator) GenerateAuthCode(userID, clientID, scope, challenge, nonce string) (string, error) {
 	var now = time.Now().Unix()
 
 	var claims = map[string]any{
@@ -116,13 +117,19 @@ func (t tokenCreator) GenerateAuthCode(userID, clientID, scope, challenge string
 		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + 300,
 		ClaimScope:          IntersectScope(t.scope, scope),
-		"challenge":         challenge,
+	}
+
+	if challenge != "" {
+		claims["challenge"] = challenge
+	}
+	if nonce != "" {
+		claims[ClaimNonce] = nonce
 	}
 
 	return jwt.Signed(t.signer).Claims(claims).CompactSerialize()
 }
 
-func (t tokenCreator) GenerateRefreshToken(userID, clientID, scope string) (string, error) {
+func (t tokenCreator) GenerateRefreshToken(userID, clientID, scope, nonce string) (string, error) {
 	var now = time.Now().Unix()
 
 	var claims = map[string]any{
@@ -137,14 +144,18 @@ func (t tokenCreator) GenerateRefreshToken(userID, clientID, scope string) (stri
 		ClaimScope:          scope,
 	}
 
+	if nonce != "" {
+		claims[ClaimNonce] = nonce
+	}
+
 	return jwt.Signed(t.signer).Claims(claims).CompactSerialize()
 }
 
-func (t tokenCreator) VerifyAuthCode(rawToken string) (string, string, string, bool) {
+func (t tokenCreator) VerifyAuthCode(rawToken string) (string, string, string, string, bool) {
 	var token, err = jwt.ParseSigned(rawToken)
 	if err != nil {
 		log.Printf("!!! %s", err)
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 	var claims = jwt.Claims{}
 	var tokenData = struct {
@@ -153,13 +164,14 @@ func (t tokenCreator) VerifyAuthCode(rawToken string) (string, string, string, b
 		Type      string `json:"typ"`
 		Scope     string `json:"scope"`
 		Challenge string `json:"challenge"`
+		Nonce     string `json:"nonce"`
 	}{}
 	if err := token.Claims(&t.privateKey.PublicKey, &claims, &tokenData); err != nil {
 		log.Printf("!!! %s", err)
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 	if tokenData.Type != TokenTypeCode {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 	err = claims.ValidateWithLeeway(jwt.Expected{
 		Issuer: t.issuer,
@@ -167,17 +179,17 @@ func (t tokenCreator) VerifyAuthCode(rawToken string) (string, string, string, b
 	}, 0)
 	if err != nil {
 		log.Printf("!!! %s", err)
-		return "", "", "", false
+		return "", "", "", "", false
 	} else {
-		return tokenData.UserID, tokenData.Scope, tokenData.Challenge, true
+		return tokenData.UserID, tokenData.Scope, tokenData.Challenge, tokenData.Nonce, true
 	}
 }
 
-func (t tokenCreator) VerifyRefreshToken(rawToken string) (string, string, bool) {
+func (t tokenCreator) VerifyRefreshToken(rawToken string) (string, string, string, bool) {
 	var token, err = jwt.ParseSigned(rawToken)
 	if err != nil {
 		log.Printf("!!! %s", err)
-		return "", "", false
+		return "", "", "", false
 	}
 	var claims = jwt.Claims{}
 	var tokenData = struct {
@@ -185,13 +197,14 @@ func (t tokenCreator) VerifyRefreshToken(rawToken string) (string, string, bool)
 		ClientID string `json:"client_id"`
 		Scope    string `json:"scope"`
 		Type     string `json:"typ"`
+		Nonce    string `json:"nonce"`
 	}{}
 	if err := token.Claims(&t.privateKey.PublicKey, &claims, &tokenData); err != nil {
 		log.Printf("!!! %s", err)
-		return "", "", false
+		return "", "", "", false
 	}
 	if tokenData.Type != TokenTypeRefreshToken {
-		return "", "", false
+		return "", "", "", false
 	}
 	err = claims.ValidateWithLeeway(jwt.Expected{
 		Issuer: t.issuer,
@@ -199,9 +212,9 @@ func (t tokenCreator) VerifyRefreshToken(rawToken string) (string, string, bool)
 	}, 0)
 	if err != nil {
 		log.Printf("!!! %s", err)
-		return "", "", false
+		return "", "", "", false
 	} else {
-		return tokenData.UserID, tokenData.Scope, true
+		return tokenData.UserID, tokenData.Scope, tokenData.Nonce, true
 	}
 }
 

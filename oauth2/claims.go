@@ -17,6 +17,7 @@ const (
 	ClaimType            = "typ"
 	ClaimAudience        = "aud"
 	ClaimAccessTokenHash = "at_hash"
+	ClaimNonce           = "nonce"
 )
 
 func AddExtraClaims(claims map[string]any, extraClaims map[string]string, user User) {

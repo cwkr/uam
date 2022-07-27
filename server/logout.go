@@ -5,6 +5,7 @@ import (
 	"github.com/cwkr/auth-server/htmlutil"
 	"github.com/cwkr/auth-server/httputil"
 	"github.com/cwkr/auth-server/oauth2"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/sessions"
 	"log"
 	"net/http"
@@ -24,8 +25,20 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var (
 		session, _  = l.sessionStore.Get(r, l.settings.SessionName)
 		clientID    = strings.TrimSpace(r.FormValue("client_id"))
-		redirectURI = strings.TrimSpace(r.FormValue("redirect_uri"))
+		redirectURI = strings.TrimSpace(r.FormValue("post_logout_redirect_uri"))
+		idTokenHint = strings.TrimSpace(r.FormValue("id_token_hint"))
 	)
+
+	if idTokenHint != "" {
+		if token, err := jwt.ParseSigned(idTokenHint); err == nil {
+			var claims = jwt.Claims{}
+			if err := token.UnsafeClaimsWithoutVerification(&claims); err == nil {
+				if len([]string(claims.Audience)) > 0 {
+					clientID = claims.Audience[0]
+				}
+			}
+		}
+	}
 
 	if redirectURI != "" && !strings.HasPrefix(redirectURI, strings.TrimRight(l.settings.Issuer, "/")) {
 		if _, clientExists := l.clients[strings.ToLower(clientID)]; !clientExists {

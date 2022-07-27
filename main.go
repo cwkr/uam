@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/sessions"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,6 +84,17 @@ func main() {
 	var sessionStore = sessions.NewCookieStore([]byte(settings.SessionSecret))
 	sessionStore.Options.HttpOnly = true
 	sessionStore.Options.MaxAge = 0
+	sessionStore.Options.SameSite = http.SameSiteStrictMode
+	if issuerUrl, err := url.Parse(settings.Issuer); err == nil {
+		if issuerUrl.Path != "/" {
+			sessionStore.Options.Path = strings.TrimSuffix(issuerUrl.Path, "/")
+		}
+		if issuerUrl.Scheme == "https" {
+			sessionStore.Options.Secure = true
+		}
+	} else {
+		panic(err)
+	}
 
 	var clients, users = maputil.LowerKeys(settings.Clients), maputil.LowerKeys(settings.Users)
 
@@ -109,6 +121,8 @@ func main() {
 	router.Handle("/", server.IndexHandler(settings, peopleStore, scope, !settings.DisablePKCE)).
 		Methods(http.MethodGet)
 	router.Handle("/style", server.StyleHandler()).
+		Methods(http.MethodGet)
+	router.Handle("/favicon.ico", server.FaviconHandler()).
 		Methods(http.MethodGet)
 	router.Handle("/login", server.LoginHandler(settings, peopleStore, sessionStore)).
 		Methods(http.MethodGet, http.MethodPost)

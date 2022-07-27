@@ -38,6 +38,8 @@ func AllowCORS(w http.ResponseWriter, r *http.Request, allowMethods []string, al
 	if allowCredentials {
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 	}
+	w.Header().Set("Access-Control-Max-Age", "7200")
+	w.Header().Set("Vary", "Origin, Access-Control-Request-Headers")
 
 	if r.Method == http.MethodOptions {
 		w.Header().Set("Allow", allowedMethods)
