@@ -57,9 +57,10 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				message = err.Error()
 			}
 		}
+	} else if r.Method == http.MethodGet {
+		httputil.NoCache(w)
 	}
 
-	httputil.NoCache(w)
 	w.Header().Set("Content-Type", "text/html;charset=UTF-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	var err = t.ExecuteTemplate(w, "login", map[string]any{

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/cwkr/auth-server/httputil"
 	"github.com/cwkr/auth-server/oauth2/pkce"
 	"github.com/cwkr/auth-server/people"
@@ -147,9 +148,10 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Error(w, ErrorInternal, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	httputil.NoCache(w)
-	timing.Report(w)
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	timing.Report(w)
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(bytes))) // no "Transfer-Encoding: chunked" please
 	w.Write(bytes)
 }
 

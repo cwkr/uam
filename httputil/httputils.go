@@ -47,7 +47,7 @@ func AllowCORS(w http.ResponseWriter, r *http.Request, allowMethods []string, al
 }
 
 func NoCache(w http.ResponseWriter) {
-	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Cache-Control", "private, no-cache, no-store, no-transform")
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 }
