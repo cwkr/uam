@@ -47,7 +47,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// when not using basic auth load client_id and client_secret parameters
 	if !basicAuth {
 		clientID = strings.TrimSpace(r.PostFormValue("client_id"))
-		clientSecret = strings.TrimSpace(r.PostFormValue("client_secret"))
+		clientSecret = r.PostFormValue("client_secret")
 	}
 
 	// debug output of parameters
@@ -55,7 +55,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		grantType, clientID, strings.Repeat("*", utf8.RuneCountInString(clientSecret)), code, codeVerifier, refreshToken)
 
 	if client, clientExists := t.clients[strings.ToLower(clientID)]; clientExists {
-		if t.disablePKCE {
+		if clientSecret != "" || grantType == "client_credentials" {
 			if err := bcrypt.CompareHashAndPassword([]byte(client.SecretHash), []byte(clientSecret)); err != nil {
 				Error(w, ErrorInvalidClient, "client authentication failed", http.StatusUnauthorized)
 				return
@@ -132,8 +132,12 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]), nonce)
 		}
 		timing.Stop("jwtgen")
+	case GrantTypeClientCredentials:
+		timing.Start("jwtgen")
+		accessToken, _ = t.tokenService.GenerateAccessToken(User{UserID: clientID}, "")
+		timing.Stop("jwtgen")
 	default:
-		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code' and 'refresh_token' are supported", http.StatusBadRequest)
+		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code', 'client_credentials' and 'refresh_token' are supported", http.StatusBadRequest)
 		return
 	}
 

@@ -38,7 +38,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		userID = strings.TrimSpace(r.PostFormValue(FieldUserID))
-		password = strings.TrimSpace(r.PostFormValue(FieldPassword))
+		password = r.PostFormValue(FieldPassword)
 		if stringutil.IsAnyEmpty(userID, password) {
 			message = "username and password must not be empty"
 		} else {

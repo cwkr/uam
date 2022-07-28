@@ -45,16 +45,21 @@ func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	var baseURL = strings.TrimRight(d.issuer, "/")
 	var discoveryDocument = DiscoveryDocument{
-		Issuer:                            d.issuer,
-		AuthorizationEndpoint:             baseURL + "/authorize",
-		JwksURI:                           baseURL + "/jwks",
-		ResponseTypesSupported:            []string{"code", "token"},
-		GrantTypesSupported:               []string{"authorization_code", "implicit", "refresh_token"},
-		TokenEndpoint:                     baseURL + "/token",
-		UserinfoEndpoint:                  baseURL + "/userinfo",
-		EndSessionEndpoint:                baseURL + "/logout",
-		ScopesSupported:                   strings.Fields(d.scope),
-		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic", "client_secret_post"},
+		Issuer:                 d.issuer,
+		AuthorizationEndpoint:  baseURL + "/authorize",
+		JwksURI:                baseURL + "/jwks",
+		ResponseTypesSupported: []string{"code", "token"},
+		GrantTypesSupported: []string{
+			"authorization_code",
+			"client_credentials",
+			"implicit",
+			"refresh_token",
+		},
+		TokenEndpoint:                              baseURL + "/token",
+		UserinfoEndpoint:                           baseURL + "/userinfo",
+		EndSessionEndpoint:                         baseURL + "/logout",
+		ScopesSupported:                            strings.Fields(d.scope),
+		TokenEndpointAuthMethodsSupported:          []string{"client_secret_basic", "client_secret_post"},
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256"},
 		IDTokenSigningAlgValuesSupported:           []string{"RS256"},
 	}
