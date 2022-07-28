@@ -1,10 +1,10 @@
 package people
 
 type Person struct {
-	Birthdate  string   `json:"birthdate,omitempty"`
-	Department string   `json:"department,omitempty"`
-	Email      string   `json:"email,omitempty"`
-	FamilyName string   `json:"family_name,omitempty"`
-	GivenName  string   `json:"given_name,omitempty"`
-	Groups     []string `json:"groups,omitempty"`
+	Birthdate  string   `json:"birthdate,omitempty" sql:"birthdate"`
+	Department string   `json:"department,omitempty" sql:"department,omitempty"`
+	Email      string   `json:"email,omitempty" sql:"email"`
+	FamilyName string   `json:"family_name,omitempty" sql:"family_name"`
+	GivenName  string   `json:"given_name,omitempty" sql:"given_name"`
+	Groups     []string `json:"groups,omitempty" sql:"-"`
 }
