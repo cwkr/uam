@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/cwkr/auth-server/oauth2"
+	"github.com/cwkr/auth-server/internal/oauth2"
 	"github.com/go-jose/go-jose/v3"
 	"log"
 	"os"
@@ -18,7 +18,7 @@ func main() {
 	flag.StringVar(&outFilename, "o", "", "output file")
 	flag.Parse()
 
-	var rsaPublicKeys, err = oauth2.LoadPublicKeys(flag.Args())
+	var rsaPublicKeys, err = oauth2.LoadPublicKeys("./", flag.Args())
 	if err != nil {
 		panic(err)
 	}

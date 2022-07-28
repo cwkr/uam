@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/cwkr/auth-server/oauth2"
+	"github.com/cwkr/auth-server/internal/oauth2"
 	"log"
 	"os"
 )

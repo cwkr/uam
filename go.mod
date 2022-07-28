@@ -7,6 +7,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.3
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/sessions v1.2.1
+	github.com/kisielk/sqlstruct v0.0.0-20210630145711-dae28ed37023
 	github.com/lib/pq v1.10.6
 	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d
 )

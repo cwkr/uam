@@ -28,12 +28,14 @@ func AddExtraClaims(claims map[string]any, extraClaims map[string]string, user U
 				return user.UserID
 			case "birthdate":
 				return user.Birthdate
-			case "given_name":
-				return user.GivenName
-			case "family_name":
-				return user.FamilyName
+			case "department":
+				return user.Department
 			case "email":
 				return user.Email
+			case "family_name":
+				return user.FamilyName
+			case "given_name":
+				return user.GivenName
 			case "groups_semicolon":
 				return strings.Join(user.Groups, ";")
 			}

@@ -2,9 +2,9 @@ package server
 
 import (
 	"fmt"
-	"github.com/cwkr/auth-server/htmlutil"
-	"github.com/cwkr/auth-server/httputil"
-	"github.com/cwkr/auth-server/oauth2"
+	"github.com/cwkr/auth-server/internal/htmlutil"
+	"github.com/cwkr/auth-server/internal/httputil"
+	"github.com/cwkr/auth-server/internal/oauth2"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/sessions"
 	"log"

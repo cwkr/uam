@@ -19,9 +19,10 @@ type ldapStore struct {
 	userIDAttr     string
 	groupIDAttr    string
 	birthdateAttr  string
-	givenNameAttr  string
-	familyNameAttr string
+	departmentAttr string
 	emailAttr      string
+	familyNameAttr string
+	givenNameAttr  string
 	settings       *StoreSettings
 }
 
@@ -59,9 +60,10 @@ func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson,
 		userIDAttr:     settings.Parameters["user_id_attribute"],
 		groupIDAttr:    settings.Parameters["group_id_attribute"],
 		birthdateAttr:  settings.Parameters["birthdate_attribute"],
-		givenNameAttr:  settings.Parameters["given_name_attribute"],
-		familyNameAttr: settings.Parameters["family_name_attribute"],
+		departmentAttr: settings.Parameters["department_attribute"],
 		emailAttr:      settings.Parameters["email_attribute"],
+		familyNameAttr: settings.Parameters["family_name_attribute"],
+		givenNameAttr:  settings.Parameters["given_name_attribute"],
 		settings:       settings,
 	}, nil
 }
@@ -126,14 +128,17 @@ func (p ldapStore) queryDetails(conn *ldap.Conn, userID string) (string, *Person
 			if p.birthdateAttr != "" {
 				person.Birthdate = entry.GetAttributeValue(p.birthdateAttr)
 			}
-			if p.givenNameAttr != "" {
-				person.GivenName = entry.GetAttributeValue(p.givenNameAttr)
+			if p.departmentAttr != "" {
+				person.Department = entry.GetAttributeValue(p.departmentAttr)
+			}
+			if p.emailAttr != "" {
+				person.Email = entry.GetAttributeValue(p.emailAttr)
 			}
 			if p.familyNameAttr != "" {
 				person.FamilyName = entry.GetAttributeValue(p.familyNameAttr)
 			}
-			if p.emailAttr != "" {
-				person.Email = entry.GetAttributeValue(p.emailAttr)
+			if p.givenNameAttr != "" {
+				person.GivenName = entry.GetAttributeValue(p.givenNameAttr)
 			}
 		} else {
 			return "", nil, ErrPersonNotFound

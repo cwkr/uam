@@ -2,10 +2,10 @@ package server
 
 import (
 	_ "embed"
-	"github.com/cwkr/auth-server/htmlutil"
-	"github.com/cwkr/auth-server/httputil"
-	"github.com/cwkr/auth-server/people"
-	"github.com/cwkr/auth-server/stringutil"
+	"github.com/cwkr/auth-server/internal/htmlutil"
+	"github.com/cwkr/auth-server/internal/httputil"
+	"github.com/cwkr/auth-server/internal/people"
+	"github.com/cwkr/auth-server/internal/stringutil"
 	"github.com/gorilla/sessions"
 	"html/template"
 	"log"

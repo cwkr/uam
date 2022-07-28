@@ -2,10 +2,10 @@ package oauth2
 
 import (
 	"fmt"
-	"github.com/cwkr/auth-server/htmlutil"
-	"github.com/cwkr/auth-server/httputil"
-	"github.com/cwkr/auth-server/people"
-	"github.com/cwkr/auth-server/stringutil"
+	"github.com/cwkr/auth-server/internal/htmlutil"
+	"github.com/cwkr/auth-server/internal/httputil"
+	"github.com/cwkr/auth-server/internal/people"
+	"github.com/cwkr/auth-server/internal/stringutil"
 	"log"
 	"net/http"
 	"net/url"

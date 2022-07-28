@@ -3,23 +3,24 @@ package people
 import (
 	"database/sql"
 	"github.com/gorilla/sessions"
+	"github.com/kisielk/sqlstruct"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 	"log"
 )
 
-type databaseStore struct {
+type sqlStore struct {
 	embeddedStore
 	dbconn   *sql.DB
 	settings *StoreSettings
 }
 
-func NewDatabaseStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionTTL int64, settings *StoreSettings) (Store, error) {
+func NewSqlStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionTTL int64, settings *StoreSettings) (Store, error) {
 	dbconn, err := sql.Open("postgres", settings.URI)
 	if err != nil {
 		return nil, err
 	}
-	return &databaseStore{
+	return &sqlStore{
 		embeddedStore: embeddedStore{
 			sessionStore: sessionStore,
 			users:        users,
@@ -31,7 +32,7 @@ func NewDatabaseStore(sessionStore sessions.Store, users map[string]AuthenticPer
 	}, nil
 }
 
-func (p databaseStore) queryGroups(userID string) ([]string, error) {
+func (p sqlStore) queryGroups(userID string) ([]string, error) {
 
 	if p.settings.GroupsQuery == "" {
 		return []string{}, nil
@@ -58,14 +59,14 @@ func (p databaseStore) queryGroups(userID string) ([]string, error) {
 	return groups, nil
 }
 
-func (p databaseStore) queryDetails(userID string) (*Person, error) {
+func (p sqlStore) queryDetails(userID string) (*Person, error) {
 	var person Person
 
 	log.Printf("SQL: %s; -- %s", p.settings.DetailsQuery, userID)
 	// SELECT given_name, family_name, email FROM users WHERE lower(id) = lower($1)
 	if rows, err := p.dbconn.Query(p.settings.DetailsQuery, userID); err == nil {
 		if rows.Next() {
-			if err := rows.Scan(&person.GivenName, &person.FamilyName, &person.Email, &person.Birthdate); err != nil {
+			if err := sqlstruct.Scan(&person, rows); err != nil {
 				return nil, err
 			}
 		} else {
@@ -77,7 +78,7 @@ func (p databaseStore) queryDetails(userID string) (*Person, error) {
 	return &person, nil
 }
 
-func (p databaseStore) Authenticate(userID, password string) (string, error) {
+func (p sqlStore) Authenticate(userID, password string) (string, error) {
 	var realUserID, err = p.embeddedStore.Authenticate(userID, password)
 	if err == nil {
 		return realUserID, nil
@@ -103,7 +104,7 @@ func (p databaseStore) Authenticate(userID, password string) (string, error) {
 	return "", ErrAuthenticationFailed
 }
 
-func (p databaseStore) Lookup(userID string) (*Person, error) {
+func (p sqlStore) Lookup(userID string) (*Person, error) {
 	var person, err = p.embeddedStore.Lookup(userID)
 	if err == nil {
 		return person, nil
@@ -125,6 +126,6 @@ func (p databaseStore) Lookup(userID string) (*Person, error) {
 	return person, nil
 }
 
-func (p databaseStore) Ping() error {
+func (p sqlStore) Ping() error {
 	return p.dbconn.Ping()
 }

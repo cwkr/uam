@@ -7,7 +7,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"github.com/cwkr/auth-server/httputil"
+	"github.com/cwkr/auth-server/internal/httputil"
 	"github.com/go-jose/go-jose/v3"
 	"log"
 	"net/http"

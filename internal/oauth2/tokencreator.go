@@ -2,8 +2,8 @@ package oauth2
 
 import (
 	"crypto/rsa"
-	"github.com/cwkr/auth-server/people"
-	"github.com/cwkr/auth-server/stringutil"
+	"github.com/cwkr/auth-server/internal/people"
+	"github.com/cwkr/auth-server/internal/stringutil"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"log"

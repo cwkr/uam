@@ -2,8 +2,8 @@ package server
 
 import (
 	"encoding/json"
-	"github.com/cwkr/auth-server/httputil"
-	"github.com/cwkr/auth-server/people"
+	"github.com/cwkr/auth-server/internal/httputil"
+	"github.com/cwkr/auth-server/internal/people"
 	"log"
 	"net/http"
 )

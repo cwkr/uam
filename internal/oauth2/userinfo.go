@@ -3,8 +3,8 @@ package oauth2
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cwkr/auth-server/httputil"
-	"github.com/cwkr/auth-server/people"
+	"github.com/cwkr/auth-server/internal/httputil"
+	"github.com/cwkr/auth-server/internal/people"
 	"log"
 	"net/http"
 )

@@ -5,11 +5,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/cwkr/auth-server/htmlutil"
-	"github.com/cwkr/auth-server/maputil"
-	"github.com/cwkr/auth-server/oauth2"
-	"github.com/cwkr/auth-server/people"
-	"github.com/cwkr/auth-server/server"
+	"github.com/cwkr/auth-server/internal/htmlutil"
+	"github.com/cwkr/auth-server/internal/maputil"
+	oauth22 "github.com/cwkr/auth-server/internal/oauth2"
+	people2 "github.com/cwkr/auth-server/internal/people"
+	server2 "github.com/cwkr/auth-server/internal/server"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"log"
@@ -21,8 +21,8 @@ import (
 )
 
 var (
-	settings     *server.Settings
-	tokenService oauth2.TokenCreator
+	settings     *server2.Settings
+	tokenService oauth22.TokenCreator
 )
 
 func main() {
@@ -37,7 +37,7 @@ func main() {
 	flag.Parse()
 
 	// Set defaults
-	settings = server.NewDefaultSettings()
+	settings = server2.NewDefaultSettings()
 
 	log.Printf("Loading settings from %s", settingsFilename)
 	configBytes, err := os.ReadFile(settingsFilename)
@@ -64,9 +64,9 @@ func main() {
 		os.Exit(0)
 	}
 
-	var scope = strings.TrimSpace(oauth2.OIDCDefaultScope + " " + settings.ExtraScope)
+	var scope = strings.TrimSpace(oauth22.OIDCDefaultScope + " " + settings.ExtraScope)
 
-	tokenService, err = oauth2.NewTokenService(
+	tokenService, err = oauth22.NewTokenService(
 		settings.PrivateKey(),
 		settings.KeyID(),
 		settings.Issuer,
@@ -98,51 +98,51 @@ func main() {
 
 	var clients, users = maputil.LowerKeys(settings.Clients), maputil.LowerKeys(settings.Users)
 
-	var peopleStore people.Store
+	var peopleStore people2.Store
 	if settings.PeopleStore != nil {
 		if strings.HasPrefix(settings.PeopleStore.URI, "postgresql:") {
-			if peopleStore, err = people.NewDatabaseStore(sessionStore, users, settings.SessionName, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
+			if peopleStore, err = people2.NewSqlStore(sessionStore, users, settings.SessionName, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
 				panic(err)
 			}
 		} else if strings.HasPrefix(settings.PeopleStore.URI, "ldap:") || strings.HasPrefix(settings.PeopleStore.URI, "ldaps:") {
-			if peopleStore, err = people.NewLdapStore(sessionStore, users, settings.SessionName, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
+			if peopleStore, err = people2.NewLdapStore(sessionStore, users, settings.SessionName, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
 				panic(err)
 			}
 		} else {
 			panic(errors.New("unsupported or empty store uri: " + settings.PeopleStore.URI))
 		}
 	} else {
-		peopleStore = people.NewEmbeddedStore(sessionStore, users, settings.SessionName, int64(settings.SessionTTL))
+		peopleStore = people2.NewEmbeddedStore(sessionStore, users, settings.SessionName, int64(settings.SessionTTL))
 	}
 
 	var router = mux.NewRouter()
 
 	router.NotFoundHandler = htmlutil.NotFoundHandler()
-	router.Handle("/", server.IndexHandler(settings, peopleStore, scope, !settings.DisablePKCE)).
+	router.Handle("/", server2.IndexHandler(settings, peopleStore, scope, !settings.DisablePKCE)).
 		Methods(http.MethodGet)
-	router.Handle("/style", server.StyleHandler()).
+	router.Handle("/style", server2.StyleHandler()).
 		Methods(http.MethodGet)
-	router.Handle("/favicon.ico", server.FaviconHandler()).
+	router.Handle("/favicon.ico", server2.FaviconHandler()).
 		Methods(http.MethodGet)
-	router.Handle("/login", server.LoginHandler(settings, peopleStore, sessionStore)).
+	router.Handle("/login", server2.LoginHandler(settings, peopleStore, sessionStore)).
 		Methods(http.MethodGet, http.MethodPost)
-	router.Handle("/logout", server.LogoutHandler(settings, sessionStore, clients))
-	router.Handle("/health", server.HealthHandler(peopleStore)).
+	router.Handle("/logout", server2.LogoutHandler(settings, sessionStore, clients))
+	router.Handle("/health", server2.HealthHandler(peopleStore)).
 		Methods(http.MethodGet)
 
-	router.Handle("/jwks", oauth2.JwksHandler(settings.AllKeys())).
+	router.Handle("/jwks", oauth22.JwksHandler(settings.AllKeys())).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle("/token", oauth2.TokenHandler(tokenService, peopleStore, clients, settings.DisablePKCE, settings.EnableRefreshTokenRotation)).
+	router.Handle("/token", oauth22.TokenHandler(tokenService, peopleStore, clients, settings.DisablePKCE, settings.EnableRefreshTokenRotation)).
 		Methods(http.MethodOptions, http.MethodPost)
-	router.Handle("/authorize", oauth2.AuthorizeHandler(tokenService, peopleStore, clients, scope, settings.DisablePKCE)).
+	router.Handle("/authorize", oauth22.AuthorizeHandler(tokenService, peopleStore, clients, scope, settings.DisablePKCE)).
 		Methods(http.MethodGet)
-	router.Handle("/.well-known/openid-configuration", oauth2.DiscoveryDocumentHandler(settings.Issuer, scope, settings.DisablePKCE)).
+	router.Handle("/.well-known/openid-configuration", oauth22.DiscoveryDocumentHandler(settings.Issuer, scope, settings.DisablePKCE)).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle("/userinfo", oauth2.UserInfoHandler(peopleStore, tokenService, settings.AccessTokenExtraClaims, settings.SessionName)).
+	router.Handle("/userinfo", oauth22.UserInfoHandler(peopleStore, tokenService, settings.AccessTokenExtraClaims, settings.SessionName)).
 		Methods(http.MethodGet, http.MethodOptions)
 
 	if !settings.DisablePeopleAPI {
-		router.Handle("/people/{user_id}", server.PeopleAPIHandler(peopleStore)).
+		router.Handle("/people/{user_id}", server2.PeopleAPIHandler(peopleStore)).
 			Methods(http.MethodGet, http.MethodOptions)
 	}
 
