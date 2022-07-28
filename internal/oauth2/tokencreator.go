@@ -31,7 +31,7 @@ type User struct {
 
 type TokenCreator interface {
 	TokenVerifier
-	GenerateAccessToken(user User, scope string) (string, error)
+	GenerateAccessToken(user User, clientID, scope string) (string, error)
 	GenerateIDToken(user User, clientID, scope, accessTokenHash, nonce string) (string, error)
 	GenerateAuthCode(userID, clientID, scope, challenge, nonce string) (string, error)
 	GenerateRefreshToken(userID, clientID, scope, nonce string) (string, error)
@@ -61,7 +61,7 @@ func (t tokenCreator) Issuer() string {
 	return t.issuer
 }
 
-func (t tokenCreator) GenerateAccessToken(user User, scope string) (string, error) {
+func (t tokenCreator) GenerateAccessToken(user User, clientID, scope string) (string, error) {
 	var now = time.Now().Unix()
 
 	var claims = map[string]any{
@@ -72,6 +72,7 @@ func (t tokenCreator) GenerateAccessToken(user User, scope string) (string, erro
 		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + t.accessTokenTTL,
 		ClaimScope:          scope,
+		ClaimAudience:       []string{t.issuer, clientID},
 	}
 
 	AddExtraClaims(claims, t.accessTokenExtraClaims, user)
@@ -89,7 +90,7 @@ func (t tokenCreator) GenerateIDToken(user User, clientID, scope, accessTokenHas
 		ClaimIssuedAtTime:    now,
 		ClaimNotBeforeTime:   now,
 		ClaimExpirationTime:  now + t.idTokenTTL,
-		ClaimAudience:        clientID,
+		ClaimAudience:        []string{t.issuer, clientID},
 		ClaimAccessTokenHash: accessTokenHash,
 		ClaimNonce:           nonce,
 	}

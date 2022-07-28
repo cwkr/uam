@@ -33,8 +33,8 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if token, err := jwt.ParseSigned(idTokenHint); err == nil {
 			var claims = jwt.Claims{}
 			if err := token.UnsafeClaimsWithoutVerification(&claims); err == nil {
-				if len([]string(claims.Audience)) > 0 {
-					clientID = claims.Audience[0]
+				if len([]string(claims.Audience)) > 1 && claims.Issuer == l.settings.Issuer {
+					clientID = claims.Audience[1]
 				}
 			}
 		}

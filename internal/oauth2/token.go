@@ -95,7 +95,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Stop("store")
 		var user = User{Person: *person, UserID: userID}
 		timing.Start("jwtgen")
-		accessToken, _ = t.tokenService.GenerateAccessToken(user, scope)
+		accessToken, _ = t.tokenService.GenerateAccessToken(user, clientID, scope)
 		if strings.Contains(scope, "offline_access") {
 			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope, nonce)
 		}
@@ -123,7 +123,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Stop("store")
 		var user = User{Person: *person, UserID: userID}
 		timing.Start("jwtgen")
-		accessToken, _ = t.tokenService.GenerateAccessToken(user, scope)
+		accessToken, _ = t.tokenService.GenerateAccessToken(user, clientID, scope)
 		if t.refreshTokenRotation && strings.Contains(scope, "offline_access") {
 			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope, nonce)
 		} else {
