@@ -50,6 +50,7 @@
 <form method="get" action="{{ .issuer }}/authorize" onsubmit="remember()">
     <input type="hidden" name="redirect_uri" value="{{ .issuer }}/">
     <input type="hidden" id="state" name="state" value="{{ .state }}">
+    <input type="hidden" id="nonce" name="nonce" value="{{ .nonce }}">
 {{- if .pkce }}
     <input type="hidden" id="code_verifier" name="code_verifier" value="{{ .code_verifier }}" disabled>
     <input type="hidden" id="code_challenge" name="code_challenge" value="{{ .code_challenge }}" disabled>
@@ -68,13 +69,9 @@
     </select>
     <label for="scope">Scope</label>
     <select id="scope" name="scope">
-        <option value="profile">profile</option>
-        <option value="email">email</option>
+        <option value="">---</option>
         <option value="offline_access">offline_access</option>
-        <option value="openid">openid</option>
-        <option value="openid profile">openid profile</option>
         <option value="openid profile email">openid profile email</option>
-        <option value="openid profile email offline_access">openid profile email offline_access</option>
         <option value="{{ .scope }}">{{ .scope }}</option>
     </select>
     <button type="submit">Get token</button>

@@ -136,7 +136,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Stop("jwtgen")
 	case GrantTypeClientCredentials:
 		timing.Start("jwtgen")
-		accessToken, _ = t.tokenService.GenerateAccessToken(User{UserID: clientID}, "")
+		accessToken, _ = t.tokenService.GenerateAccessToken(User{UserID: clientID}, clientID, "")
 		timing.Stop("jwtgen")
 	default:
 		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code', 'client_credentials' and 'refresh_token' are supported", http.StatusBadRequest)

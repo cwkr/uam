@@ -71,8 +71,11 @@ func (t tokenCreator) GenerateAccessToken(user User, clientID, scope string) (st
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + t.accessTokenTTL,
-		ClaimScope:          scope,
 		ClaimAudience:       []string{t.issuer, clientID},
+	}
+
+	if scope != "" {
+		claims[ClaimScope] = scope
 	}
 
 	AddExtraClaims(claims, t.accessTokenExtraClaims, user)
@@ -118,9 +121,11 @@ func (t tokenCreator) GenerateAuthCode(userID, clientID, scope, challenge, nonce
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + 300,
-		ClaimScope:          IntersectScope(t.scope, scope),
 	}
 
+	if scope != "" {
+		claims[ClaimScope] = IntersectScope(t.scope, scope)
+	}
 	if challenge != "" {
 		claims["challenge"] = challenge
 	}
@@ -143,9 +148,11 @@ func (t tokenCreator) GenerateRefreshToken(userID, clientID, scope, nonce string
 		ClaimIssuedAtTime:   now,
 		ClaimNotBeforeTime:  now,
 		ClaimExpirationTime: now + t.refreshTokenTTL,
-		ClaimScope:          scope,
 	}
 
+	if scope != "" {
+		claims[ClaimScope] = scope
+	}
 	if nonce != "" {
 		claims[ClaimNonce] = nonce
 	}

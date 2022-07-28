@@ -54,6 +54,7 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"issuer":         strings.TrimRight(i.settings.Issuer, "/"),
 		"public_key":     string(pubBytes),
 		"state":          fmt.Sprint(rand.Int()),
+		"nonce":          stringutil.RandomBytesString(10),
 		"scope":          i.scope,
 		"clients":        i.settings.Clients,
 		"user_id":        userID,
