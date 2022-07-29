@@ -123,6 +123,7 @@ func (p sqlStore) Lookup(userID string) (*Person, error) {
 	}
 	person.Groups = groups
 
+	log.Printf("%#v", *person)
 	return person, nil
 }
 

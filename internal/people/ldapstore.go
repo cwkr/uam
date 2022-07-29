@@ -76,7 +76,7 @@ func (p ldapStore) queryGroups(conn *ldap.Conn, userDN string) ([]string, error)
 
 	var groups []string
 
-	log.Printf("LDAP: %s; %%s = %s", p.settings.GroupsQuery, userDN)
+	log.Printf("LDAP: %s; # %s", p.settings.GroupsQuery, userDN)
 	// (&(objectClass=groupOfUniqueNames)(uniquemember=%s))
 	var ldapGroupsSearch = ldap.NewSearchRequest(
 		p.baseDN,
@@ -108,7 +108,7 @@ func (p ldapStore) queryDetails(conn *ldap.Conn, userID string) (string, *Person
 	var person Person
 	var userDN string
 
-	log.Printf("LDAP: %s; %%s = %s", p.settings.DetailsQuery, userID)
+	log.Printf("LDAP: %s; # %s", p.settings.DetailsQuery, userID)
 	// (&(objectClass=person)(uid=%s))
 	var ldapSearch = ldap.NewSearchRequest(
 		p.baseDN,
@@ -171,7 +171,7 @@ func (p ldapStore) Authenticate(userID, password string) (string, error) {
 	}
 
 	// (&(objectClass=person)(uid=%s))
-	log.Printf("LDAP: %s; %%s = %s", p.settings.CredentialsQuery, userID)
+	log.Printf("LDAP: %s; # %s", p.settings.CredentialsQuery, userID)
 	var ldapSearch = ldap.NewSearchRequest(
 		p.baseDN,
 		ldap.ScopeWholeSubtree,
@@ -238,5 +238,6 @@ func (p ldapStore) Lookup(userID string) (*Person, error) {
 	}
 	person.Groups = groups
 
+	log.Printf("%#v", *person)
 	return person, nil
 }

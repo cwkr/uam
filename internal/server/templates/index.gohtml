@@ -23,17 +23,58 @@
                 {{- end }}
             }
         }
-        {{- if .pkce }}
-        function togglePkceParams(responseType) {
+
+        function onResponseTypeChange(responseType) {
             if (responseType === "code") {
-                document.getElementById("code_challenge").disabled = false;
-                document.getElementById("code_challenge_method").disabled = false;
+                document.querySelectorAll("#code_challenge, #code_challenge_method, #nonce, #scope").forEach(input => {
+                    input.disabled = false;
+                });
             } else if (responseType === "token") {
-                document.getElementById("code_challenge").disabled = true;
-                document.getElementById("code_challenge_method").disabled = true;
+                document.querySelectorAll("#code_challenge, #code_challenge_method, #nonce").forEach(input => {
+                    input.disabled = true;
+                });
+                document.querySelectorAll("#scope").forEach(input => {
+                    input.disabled = false;
+                });
+            } else if (responseType === "client_credentials") {
+                document.querySelectorAll("#code_challenge, #code_challenge_method, #nonce, #scope").forEach(input => {
+                    input.disabled = true;
+                });
             }
         }
-        {{- end }}
+
+        function onFormSubmit() {
+            const responseType = document.getElementById("response_type").value;
+            if (responseType === 'client_credentials') {
+                const postParams = new URLSearchParams({
+                    "grant_type": "client_credentials",
+                    "client_id": document.getElementById("client_id").value,
+                    "client_secret": prompt("Client secret (required)") || ''
+                });
+                fetch("token", {method: "POST", body: postParams})
+                    .then(async resp => {
+                        if (!resp.ok) {
+                            throw new Error(await resp.text());
+                        }
+                        return resp.json();
+                    })
+                    .then(data => {
+                        if (data.access_token) {
+                            document.getElementById("access_token_output").textContent = data.access_token;
+                            document.getElementById("access_token_panel").style.display = 'block';
+                        }
+                    })
+                    .catch(error => {
+                        console.error(error);
+                        document.getElementById("access_token_output").textContent = error.message;
+                        document.getElementById("access_token_panel").style.display = 'block';
+                    });
+                return false;
+            }
+
+            remember();
+            return true;
+        }
     </script>
 </head>
 <body>
@@ -47,7 +88,7 @@
     </form>
 {{- end }}
 <h2>Test</h2>
-<form method="get" action="{{ .issuer }}/authorize" onsubmit="remember()">
+<form method="get" action="{{ .issuer }}/authorize" onsubmit="return onFormSubmit()">
     <input type="hidden" name="redirect_uri" value="{{ .issuer }}/">
     <input type="hidden" id="state" name="state" value="{{ .state }}">
     <input type="hidden" id="nonce" name="nonce" value="{{ .nonce }}">
@@ -57,9 +98,10 @@
     <input type="hidden" id="code_challenge_method" name="code_challenge_method" value="S256" disabled>
 {{- end }}
     <label for="response_type">Flow</label>
-    <select id="response_type" name="response_type"{{ if .pkce }} onchange="togglePkceParams(this.value);"{{ end }}>
-        <option value="token">Implicit</option>
-        <option value="code">Authorization Code</option>
+    <select id="response_type" name="response_type" onchange="onResponseTypeChange(this.value);">
+        <option value="token">Implicit (access token only)</option>
+        <option value="code">Authorization Code (access token with refresh token and id token depending on scope)</option>
+        <option value="client_credentials">Client Credentials (access token only)</option>
     </select>
     <label for="client_id">Client</label>
     <select id="client_id" name="client_id">
@@ -99,9 +141,7 @@
     const rememberedResponseType = sessionStorage.getItem("response_type");
     if (rememberedResponseType) {
         document.getElementById("response_type").value = rememberedResponseType;
-        {{- if .pkce }}
-        togglePkceParams(rememberedResponseType)
-        {{- end }}
+        onResponseTypeChange(rememberedResponseType)
     }
 
     const rememberedClientId = sessionStorage.getItem("client_id");
@@ -132,7 +172,7 @@
             {{- if .pkce }}
             "code_verifier": sessionStorage.getItem('code_verifier'+urlParams.get("state"))
             {{- else }}
-            "client_secret": prompt("Client secret")
+            "client_secret": prompt("Client secret (optional)") || ''
             {{- end }}
         });
         fetch("token", {method: "POST", body: postParams})
@@ -163,6 +203,7 @@
             .catch(error => {
                 console.error(error);
                 document.getElementById("access_token_output").textContent = error.message;
+                document.getElementById("access_token_panel").style.display = 'block';
             });
     }
 </script>
