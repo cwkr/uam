@@ -34,6 +34,7 @@ func (p *peopleAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		httputil.NoCache(w)
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Write(bytes)
 	} else {
 		if err == people.ErrPersonNotFound {

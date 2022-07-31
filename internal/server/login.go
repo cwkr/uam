@@ -6,7 +6,6 @@ import (
 	"github.com/cwkr/auth-server/internal/httputil"
 	"github.com/cwkr/auth-server/internal/people"
 	"github.com/cwkr/auth-server/internal/stringutil"
-	"github.com/gorilla/sessions"
 	"html/template"
 	"log"
 	"net/http"
@@ -23,15 +22,13 @@ const (
 var loginTpl string
 
 type loginHandler struct {
-	settings     *Settings
-	peopleStore  people.Store
-	sessionStore sessions.Store
+	peopleStore people.Store
+	issuer      string
 }
 
 func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 	var message string
-	var session, _ = j.sessionStore.Get(r, j.settings.SessionName)
 	var t, _ = template.New("login").Parse(loginTpl)
 
 	var userID, password string
@@ -43,15 +40,12 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			message = "username and password must not be empty"
 		} else {
 			if realUserID, err := j.peopleStore.Authenticate(userID, password); err == nil {
-				session.Values["uid"] = realUserID
-				var now = time.Now()
-				session.Values["sct"] = now.Unix()
-				if err := session.Save(r, w); err != nil {
+				if err := j.peopleStore.SaveSession(r, w, realUserID, time.Now()); err != nil {
 					htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
 				log.Printf("userID=%s", realUserID)
-				httputil.RedirectQuery(w, r, strings.TrimRight(j.settings.Issuer, "/")+"/authorize", r.URL.Query())
+				httputil.RedirectQuery(w, r, strings.TrimRight(j.issuer, "/")+"/authorize", r.URL.Query())
 				return
 			} else {
 				message = err.Error()
@@ -64,7 +58,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html;charset=UTF-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	var err = t.ExecuteTemplate(w, "login", map[string]any{
-		"issuer":  strings.TrimRight(j.settings.Issuer, "/"),
+		"issuer":  strings.TrimRight(j.issuer, "/"),
 		"query":   template.HTML("?" + r.URL.RawQuery),
 		"message": message,
 		"userID":  userID,
@@ -74,10 +68,9 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func LoginHandler(settings *Settings, peopleStore people.Store, sessionStore sessions.Store) http.Handler {
+func LoginHandler(peopleStore people.Store, issuer string) http.Handler {
 	return &loginHandler{
-		settings:     settings,
-		peopleStore:  peopleStore,
-		sessionStore: sessionStore,
+		peopleStore: peopleStore,
+		issuer:      issuer,
 	}
 }

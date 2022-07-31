@@ -10,17 +10,13 @@
             const clientId = document.getElementById("client_id").value;
             const responseType = document.getElementById("response_type").value;
             const scope = document.getElementById("scope").value;
-            {{- if .pkce }}
             const codeVerifier = document.getElementById("code_verifier").value;
-            {{- end }}
             sessionStorage.setItem("client_id", clientId);
             sessionStorage.setItem("response_type", responseType);
             sessionStorage.setItem("scope", scope);
             if (responseType === "code") {
                 sessionStorage.setItem('client_id'+state, clientId);
-                {{- if .pkce }}
                 sessionStorage.setItem('code_verifier'+state, codeVerifier);
-                {{- end }}
             }
         }
 
@@ -62,12 +58,16 @@
                         if (data.access_token) {
                             document.getElementById("access_token_output").textContent = data.access_token;
                             document.getElementById("access_token_panel").style.display = 'block';
+                            document.getElementById("refresh_token_panel").style.display = 'none';
+                            document.getElementById("id_token_panel").style.display = 'none';
                         }
                     })
                     .catch(error => {
                         console.error(error);
                         document.getElementById("access_token_output").textContent = error.message;
                         document.getElementById("access_token_panel").style.display = 'block';
+                        document.getElementById("refresh_token_panel").style.display = 'none';
+                        document.getElementById("id_token_panel").style.display = 'none';
                     });
                 return false;
             }
@@ -92,11 +92,9 @@
     <input type="hidden" name="redirect_uri" value="{{ .issuer }}/">
     <input type="hidden" id="state" name="state" value="{{ .state }}">
     <input type="hidden" id="nonce" name="nonce" value="{{ .nonce }}">
-{{- if .pkce }}
     <input type="hidden" id="code_verifier" name="code_verifier" value="{{ .code_verifier }}" disabled>
     <input type="hidden" id="code_challenge" name="code_challenge" value="{{ .code_challenge }}" disabled>
     <input type="hidden" id="code_challenge_method" name="code_challenge_method" value="S256" disabled>
-{{- end }}
     <label for="response_type">Flow</label>
     <select id="response_type" name="response_type" onchange="onResponseTypeChange(this.value);">
         <option value="token">Implicit (access token only)</option>
@@ -169,11 +167,7 @@
             "grant_type": "authorization_code",
             "code": urlParams.get("code"),
             "client_id": sessionStorage.getItem('client_id'+urlParams.get("state")),
-            {{- if .pkce }}
             "code_verifier": sessionStorage.getItem('code_verifier'+urlParams.get("state"))
-            {{- else }}
-            "client_secret": prompt("Client secret (optional)") || ''
-            {{- end }}
         });
         fetch("token", {method: "POST", body: postParams})
             .then(async resp => {
@@ -196,9 +190,7 @@
                     document.getElementById("id_token_panel").style.display = 'block';
                 }
                 sessionStorage.removeItem('client_id'+urlParams.get("state"));
-                {{- if .pkce }}
                 sessionStorage.removeItem('code_verifier'+urlParams.get("state"));
-                {{- end }}
             })
             .catch(error => {
                 console.error(error);

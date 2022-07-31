@@ -118,13 +118,13 @@ func main() {
 	var router = mux.NewRouter()
 
 	router.NotFoundHandler = htmlutil.NotFoundHandler()
-	router.Handle("/", server2.IndexHandler(settings, peopleStore, scope, !settings.DisablePKCE)).
+	router.Handle("/", server2.IndexHandler(settings, peopleStore, scope)).
 		Methods(http.MethodGet)
 	router.Handle("/style", server2.StyleHandler()).
 		Methods(http.MethodGet)
 	router.Handle("/favicon.ico", server2.FaviconHandler()).
 		Methods(http.MethodGet)
-	router.Handle("/login", server2.LoginHandler(settings, peopleStore, sessionStore)).
+	router.Handle("/login", server2.LoginHandler(peopleStore, settings.Issuer)).
 		Methods(http.MethodGet, http.MethodPost)
 	router.Handle("/logout", server2.LogoutHandler(settings, sessionStore, clients))
 	router.Handle("/health", server2.HealthHandler(peopleStore)).
@@ -132,11 +132,11 @@ func main() {
 
 	router.Handle("/jwks", oauth22.JwksHandler(settings.AllKeys())).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle("/token", oauth22.TokenHandler(tokenService, peopleStore, clients, settings.DisablePKCE, settings.EnableRefreshTokenRotation)).
+	router.Handle("/token", oauth22.TokenHandler(tokenService, peopleStore, clients, settings.EnableRefreshTokenRotation)).
 		Methods(http.MethodOptions, http.MethodPost)
-	router.Handle("/authorize", oauth22.AuthorizeHandler(tokenService, peopleStore, clients, scope, settings.DisablePKCE)).
+	router.Handle("/authorize", oauth22.AuthorizeHandler(tokenService, peopleStore, clients, scope)).
 		Methods(http.MethodGet)
-	router.Handle("/.well-known/openid-configuration", oauth22.DiscoveryDocumentHandler(settings.Issuer, scope, settings.DisablePKCE)).
+	router.Handle("/.well-known/openid-configuration", oauth22.DiscoveryDocumentHandler(settings.Issuer, scope)).
 		Methods(http.MethodGet, http.MethodOptions)
 	router.Handle("/userinfo", oauth22.UserInfoHandler(peopleStore, tokenService, settings.AccessTokenExtraClaims, settings.SessionName)).
 		Methods(http.MethodGet, http.MethodOptions)

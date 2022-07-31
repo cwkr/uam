@@ -20,7 +20,6 @@ type tokenHandler struct {
 	tokenService         TokenCreator
 	peopleStore          people.Store
 	clients              Clients
-	disablePKCE          bool
 	refreshTokenRotation bool
 }
 
@@ -70,22 +69,30 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch grantType {
 	case GrantTypeAuthorizationCode:
-		if t.disablePKCE && stringutil.IsAnyEmpty(clientID, code) {
-			Error(w, ErrorInvalidRequest, "client_id and code parameters are required", http.StatusBadRequest)
-			return
-		} else if !t.disablePKCE && stringutil.IsAnyEmpty(clientID, code, codeVerifier) {
-			Error(w, ErrorInvalidRequest, "client_id, code and code_verifier parameters are required", http.StatusBadRequest)
-			return
-		}
 		var userID, scope, challenge, nonce, valid = t.tokenService.VerifyAuthCode(code)
-		if !t.disablePKCE && !pkce.Verify(challenge, codeVerifier) {
-			Error(w, ErrorInvalidGrant, "invalid challenge", http.StatusBadRequest)
-			return
-		}
 		if !valid {
 			Error(w, ErrorInvalidGrant, "invalid auth code", http.StatusBadRequest)
 			return
 		}
+
+		// verify parameters and pkce
+		if challenge == "" {
+			if stringutil.IsAnyEmpty(clientID, code) {
+				Error(w, ErrorInvalidRequest, "client_id and code parameters are required", http.StatusBadRequest)
+				return
+			}
+		} else {
+			if stringutil.IsAnyEmpty(clientID, code, codeVerifier) {
+				Error(w, ErrorInvalidRequest, "client_id, code and code_verifier parameters are required", http.StatusBadRequest)
+				return
+			}
+
+			if !pkce.Verify(challenge, codeVerifier) {
+				Error(w, ErrorInvalidGrant, "invalid challenge", http.StatusBadRequest)
+				return
+			}
+		}
+
 		timing.Start("store")
 		var person, err = t.peopleStore.Lookup(userID)
 		if err != nil {
@@ -161,11 +168,10 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
-func TokenHandler(tokenService TokenCreator, peopleStore people.Store, clients Clients, disablePKCE, refreshTokenRotation bool) http.Handler {
+func TokenHandler(tokenService TokenCreator, peopleStore people.Store, clients Clients, refreshTokenRotation bool) http.Handler {
 	return &tokenHandler{
 		tokenService:         tokenService,
 		clients:              clients,
-		disablePKCE:          disablePKCE,
 		peopleStore:          peopleStore,
 		refreshTokenRotation: refreshTokenRotation,
 	}

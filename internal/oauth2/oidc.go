@@ -28,9 +28,8 @@ type DiscoveryDocument struct {
 }
 
 type discoveryDocumentHandler struct {
-	issuer      string
-	scope       string
-	disablePKCE bool
+	issuer string
+	scope  string
 }
 
 func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -61,10 +60,8 @@ func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		ScopesSupported:                            strings.Fields(d.scope),
 		TokenEndpointAuthMethodsSupported:          []string{"client_secret_basic", "client_secret_post"},
 		TokenEndpointAuthSigningAlgValuesSupported: []string{"RS256"},
+		CodeChallengeMethodsSupported:              []string{"S256"},
 		IDTokenSigningAlgValuesSupported:           []string{"RS256"},
-	}
-	if !d.disablePKCE {
-		discoveryDocument.CodeChallengeMethodsSupported = []string{"S256"}
 	}
 	if bytes, err := json.Marshal(discoveryDocument); err != nil {
 		htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
@@ -74,10 +71,9 @@ func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func DiscoveryDocumentHandler(issuer, scope string, disablePKCE bool) http.Handler {
+func DiscoveryDocumentHandler(issuer, scope string) http.Handler {
 	return &discoveryDocumentHandler{
-		issuer:      issuer,
-		scope:       scope,
-		disablePKCE: disablePKCE,
+		issuer: issuer,
+		scope:  scope,
 	}
 }

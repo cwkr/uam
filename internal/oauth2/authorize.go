@@ -31,7 +31,6 @@ type authorizeHandler struct {
 	peopleStore  people.Store
 	clients      Clients
 	scope        string
-	disablePKCE  bool
 }
 
 func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -100,10 +99,13 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"state":        {state},
 		})
 	case ResponseTypeCode:
-		if !a.disablePKCE && (challenge == "" || challengeMethod != "S256") {
-			htmlutil.Error(w, "code_challenge and code_challenge_method=S256 required for PKCE", http.StatusInternalServerError)
-			return
+		if challengeMethod != "" {
+			if challenge == "" || challengeMethod != "S256" {
+				htmlutil.Error(w, "code_challenge and code_challenge_method=S256 required for PKCE", http.StatusInternalServerError)
+				return
+			}
 		}
+
 		timing.Start("jwtgen")
 		var x, err = a.tokenService.GenerateAuthCode(user.UserID, clientID, IntersectScope(a.scope, scope), challenge, nonce)
 		if err != nil {
@@ -120,12 +122,11 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func AuthorizeHandler(tokenService TokenCreator, peopleStore people.Store, clients Clients, scope string, disablePKCE bool) http.Handler {
+func AuthorizeHandler(tokenService TokenCreator, peopleStore people.Store, clients Clients, scope string) http.Handler {
 	return &authorizeHandler{
 		tokenService: tokenService,
 		peopleStore:  peopleStore,
 		clients:      clients,
 		scope:        scope,
-		disablePKCE:  disablePKCE,
 	}
 }

@@ -27,7 +27,6 @@ type indexHandler struct {
 	peopleStore people.Store
 	publicKey   *rsa.PublicKey
 	scope       string
-	usePKCE     bool
 }
 
 func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +60,6 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"login_start":    loginStart,
 		"login_expiry":   loginExpiry,
 		"login_active":   active,
-		"pkce":           i.usePKCE,
 		"code_verifier":  codeVerifier,
 		"code_challenge": pkce.CodeChallange(codeVerifier),
 	})
@@ -70,11 +68,10 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func IndexHandler(settings *Settings, peopleStore people.Store, scope string, usePKCE bool) http.Handler {
+func IndexHandler(settings *Settings, peopleStore people.Store, scope string) http.Handler {
 	return &indexHandler{
 		settings:    settings,
 		peopleStore: peopleStore,
 		scope:       scope,
-		usePKCE:     usePKCE,
 	}
 }

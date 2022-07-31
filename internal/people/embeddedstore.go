@@ -66,6 +66,16 @@ func (e embeddedStore) AuthenticationTime(r *http.Request) (time.Time, time.Time
 	return time.Time{}, time.Time{}
 }
 
+func (e embeddedStore) SaveSession(r *http.Request, w http.ResponseWriter, userID string, authTime time.Time) error {
+	var session, _ = e.sessionStore.Get(r, e.sessionName)
+	session.Values["uid"] = userID
+	session.Values["sct"] = authTime.Unix()
+	if err := session.Save(r, w); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (e embeddedStore) Lookup(userID string) (*Person, error) {
 	var authenticPerson, found = e.users[strings.ToLower(userID)]
 

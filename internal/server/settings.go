@@ -16,7 +16,7 @@ import (
 type Settings struct {
 	Issuer                     string                            `json:"issuer"`
 	Port                       int                               `json:"port"`
-	Users                      map[string]people.AuthenticPerson `json:"users"`
+	Users                      map[string]people.AuthenticPerson `json:"users,omitempty"`
 	Key                        string                            `json:"key"`
 	AdditionalKeys             []string                          `json:"additional_keys,omitempty"`
 	Clients                    oauth2.Clients                    `json:"clients"`
@@ -29,7 +29,6 @@ type Settings struct {
 	SessionSecret              string                            `json:"session_secret"`
 	SessionName                string                            `json:"session_name"`
 	SessionTTL                 int                               `json:"session_ttl"`
-	DisablePKCE                bool                              `json:"disable_pkce"`
 	EnableRefreshTokenRotation bool                              `json:"enable_refresh_token_rotation"`
 	PeopleStore                *people.StoreSettings             `json:"people_store,omitempty"`
 	DisablePeopleAPI           bool                              `json:"disable_people_api,omitempty"`
