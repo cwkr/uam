@@ -12,6 +12,7 @@ import (
 	server2 "github.com/cwkr/auth-server/internal/server"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
+	"github.com/tidwall/jsonc"
 	"log"
 	"net/http"
 	"net/url"
@@ -42,7 +43,7 @@ func main() {
 	log.Printf("Loading settings from %s", settingsFilename)
 	configBytes, err := os.ReadFile(settingsFilename)
 	if err == nil {
-		err = json.Unmarshal(configBytes, settings)
+		err = json.Unmarshal(jsonc.ToJSON(configBytes), settings)
 		if err != nil {
 			panic(err)
 		}

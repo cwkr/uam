@@ -16,4 +16,5 @@ require (
 	github.com/Azure/go-ntlmssp v0.0.0-20211209120228-48547f28849e // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.4 // indirect
 	github.com/gorilla/securecookie v1.1.1 // indirect
+	github.com/tidwall/jsonc v0.3.2 // indirect
 )
