@@ -143,7 +143,7 @@ func main() {
 		Methods(http.MethodGet, http.MethodOptions)
 
 	if !settings.DisablePeopleAPI {
-		router.Handle("/people/{user_id}", server2.PeopleAPIHandler(peopleStore)).
+		router.Handle("/api/{version}/people/{user_id}", server2.PeopleAPIHandler(peopleStore, settings.PeopleAPICustomVersions)).
 			Methods(http.MethodGet, http.MethodOptions)
 	}
 

@@ -13,13 +13,10 @@ It is possible to use a PostgreSQL database or LDAP as people store.
 {
   "issuer": "http://localhost:6080/",
   "port": 6080,
-  "title": "Auth Server",
   "users": {
     "user": {
-      "details": {
-        "first_name": "First Name",
-        "last_name": "Last Name"
-      },
+      "given_name": "First Name",
+      "family_name": "Last Name",
       "groups": [
         "admin"
       ],
@@ -34,21 +31,21 @@ It is possible to use a PostgreSQL database or LDAP as people store.
       "redirect_uri_pattern": "https?:\\/\\/localhost(:\\d+)?\\/"
     }
   },
-  "claims": {
-    "email": "{{ .Email }}",
-    "givenName": "{{ .GivenName }}",
-    "groups": "{{ .Groups | join ',' }}",
-    "sn": "{{ .FamilyName }}",
-    "user_id": "{{ .UserID | upper }}"
+  "access_token_extra_claims": {
+    "prn": "$user_id",
+    "email": "$email",
+    "givenName": "$given_name",
+    "groups": "$groups_semicolon",
+    "sn": "$family_name",
+    "user_id": "$user_id"
   },
   // available scopes
-  "scope": "profile email offline_access",
-  "access_token_lifetime": 3600,
-  "refresh_token_lifetime": 28800,
+  "extra_scope": "profile email offline_access",
+  "access_token_ttl": 3600,
+  "refresh_token_ttl": 28800,
   "session_secret": "eoxxj3S-KsA7rlVHYfhOy22rW7abWDi5lS7WoCZ9hf4",
   "session_name": "ASESSION",
-  "session_lifetime": 28800,
-  "disable_pkce": false,
+  "session_ttl": 28800,
   "people_store": {
     "uri": "postgresql://authserver:trustno1@localhost/dev?sslmode=disable",
     "credentials_query": "SELECT id, password_hash FROM users WHERE lower(id) = lower($1)",
@@ -65,27 +62,26 @@ It is possible to use a PostgreSQL database or LDAP as people store.
 {
   "issuer": "http://localhost:6080/",
   "port": 6080,
-  "title": "Auth Server",
   "key": "mykey.pem",
   "clients": {
     "app": {
       "redirect_uri_pattern": "https?:\\/\\/localhost(:\\d+)?\\/"
     }
   },
-  "claims": {
-    "email": "{{ .Email }}",
-    "givenName": "{{ .GivenName }}",
-    "groups": "{{ .Groups | join ',' }}",
-    "sn": "{{ .FamilyName }}",
-    "user_id": "{{ .UserID | upper }}"
+  "access_token_extra_claims": {
+    "prn": "$user_id",
+    "email": "$email",
+    "givenName": "$given_name",
+    "groups": "$groups_semicolon",
+    "sn": "$family_name",
+    "user_id": "$user_id"
   },
-  "scope": "profile",
-  "access_token_lifetime": 3600,
-  "refresh_token_lifetime": 28800,
+  "extra_scope": "profile",
+  "access_token_ttl": 3600,
+  "refresh_token_ttl": 28800,
   "session_secret": "jpDc7ah68Vw8yOccr9yIaWDR7_oqN1vHrLQEJ1YLvnQ",
   "session_name": "ASESSION",
-  "session_lifetime": 28800,
-  "disable_pkce": false,
+  "session_ttl": 28800,
   "people_store": {
     "uri": "ldaps://cn=access_user,cn=Users,dc=example,dc=org:trustno1@oid.example.org:3070",
     "credentials_query": "(&(objectClass=person)(uid=%s))",
@@ -94,10 +90,11 @@ It is possible to use a PostgreSQL database or LDAP as people store.
     "parameters": {
       "base_dn": "dc=example,dc=org",
       "user_id_attribute": "uid",
-      "group_id_attribute": "dn",
-      "given_name_attribute": "givenname",
+      "group_id_attribute": "dn",      
+      "department_attribute": "department",
+      "email_attribute": "mail",
       "family_name_attribute": "sn",
-      "email_attribute": "mail"
+      "given_name_attribute": "givenname",
     }
   },
   "disable_people_api": false

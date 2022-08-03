@@ -32,6 +32,7 @@ type Settings struct {
 	EnableRefreshTokenRotation bool                              `json:"enable_refresh_token_rotation"`
 	PeopleStore                *people.StoreSettings             `json:"people_store,omitempty"`
 	DisablePeopleAPI           bool                              `json:"disable_people_api,omitempty"`
+	PeopleAPICustomVersions    map[string]map[string]string      `json:"people_api_custom_versions,omitempty"`
 	rsaSigningKey              *rsa.PrivateKey
 	rsaSigningKeyID            string
 	rsaAdditionalKeys          map[string]*rsa.PublicKey
