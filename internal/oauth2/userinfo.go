@@ -50,6 +50,8 @@ func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		AddProfileClaims(claims, user)
 		AddEmailClaims(claims, user)
+		AddPhoneClaims(claims, user)
+		AddAddressClaims(claims, user)
 		AddExtraClaims(claims, u.extraClaims, user)
 
 		var bytes, err = json.Marshal(claims)

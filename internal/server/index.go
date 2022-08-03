@@ -33,10 +33,10 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 	var t, _ = template.New("index").Parse(indexTpl)
 
-	var pubASN1 = x509.MarshalPKCS1PublicKey(i.settings.PublicKey())
+	var pubASN1, _ = x509.MarshalPKIXPublicKey(i.settings.PublicKey())
 
 	var pubBytes = pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PUBLIC KEY",
+		Type:  "PUBLIC KEY",
 		Bytes: pubASN1,
 	})
 
