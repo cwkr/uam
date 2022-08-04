@@ -22,6 +22,7 @@ const (
 var loginTpl string
 
 type loginHandler struct {
+	basePath    string
 	peopleStore people.Store
 	issuer      string
 }
@@ -41,7 +42,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			if realUserID, err := j.peopleStore.Authenticate(userID, password); err == nil {
 				if err := j.peopleStore.SaveSession(r, w, realUserID, time.Now()); err != nil {
-					htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
+					htmlutil.Error(w, j.basePath, err.Error(), http.StatusInternalServerError)
 					return
 				}
 				log.Printf("userID=%s", realUserID)
@@ -58,18 +59,20 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html;charset=UTF-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	var err = t.ExecuteTemplate(w, "login", map[string]any{
-		"issuer":  strings.TrimRight(j.issuer, "/"),
-		"query":   template.HTML("?" + r.URL.RawQuery),
-		"message": message,
-		"userID":  userID,
+		"base_path": j.basePath,
+		"issuer":    strings.TrimRight(j.issuer, "/"),
+		"query":     template.HTML("?" + r.URL.RawQuery),
+		"message":   message,
+		"userID":    userID,
 	})
 	if err != nil {
-		htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
+		htmlutil.Error(w, j.basePath, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func LoginHandler(peopleStore people.Store, issuer string) http.Handler {
+func LoginHandler(basePath string, peopleStore people.Store, issuer string) http.Handler {
 	return &loginHandler{
+		basePath:    basePath,
 		peopleStore: peopleStore,
 		issuer:      issuer,
 	}

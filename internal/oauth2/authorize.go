@@ -27,6 +27,7 @@ func IntersectScope(availableScope, requestedScope string) string {
 }
 
 type authorizeHandler struct {
+	basePath     string
 	tokenService TokenCreator
 	peopleStore  people.Store
 	clients      Clients
@@ -54,7 +55,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if person, err := a.peopleStore.Lookup(uid); err == nil {
 			user = User{UserID: uid, Person: *person}
 		} else {
-			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
+			htmlutil.Error(w, a.basePath, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		timing.Stop("store")
@@ -64,18 +65,18 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if stringutil.IsAnyEmpty(responseType, clientID, redirectURI) {
-		htmlutil.Error(w, ErrorInvalidRequest, http.StatusBadRequest)
+		htmlutil.Error(w, a.basePath, ErrorInvalidRequest, http.StatusBadRequest)
 		return
 	}
 
 	if _, clientExists := a.clients[clientID]; !clientExists {
-		htmlutil.Error(w, ErrorInvalidClient, http.StatusForbidden)
+		htmlutil.Error(w, a.basePath, ErrorInvalidClient, http.StatusForbidden)
 		return
 	}
 
 	if client, found := a.clients[clientID]; found && client.RedirectURIPattern != "" {
 		if !regexp.MustCompile(client.RedirectURIPattern).MatchString(redirectURI) {
-			htmlutil.Error(w, ErrorRedirectURIMismatch, http.StatusBadRequest)
+			htmlutil.Error(w, a.basePath, ErrorRedirectURIMismatch, http.StatusBadRequest)
 			return
 		}
 	}
@@ -85,7 +86,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Start("jwtgen")
 		var x, err = a.tokenService.GenerateAccessToken(user, clientID, IntersectScope(a.scope, scope))
 		if err != nil {
-			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
+			htmlutil.Error(w, a.basePath, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		timing.Stop("jwtgen")
@@ -101,7 +102,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case ResponseTypeCode:
 		if challengeMethod != "" {
 			if challenge == "" || challengeMethod != "S256" {
-				htmlutil.Error(w, "code_challenge and code_challenge_method=S256 required for PKCE", http.StatusInternalServerError)
+				htmlutil.Error(w, a.basePath, "code_challenge and code_challenge_method=S256 required for PKCE", http.StatusInternalServerError)
 				return
 			}
 		}
@@ -109,7 +110,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Start("jwtgen")
 		var x, err = a.tokenService.GenerateAuthCode(user.UserID, clientID, IntersectScope(a.scope, scope), challenge, nonce)
 		if err != nil {
-			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
+			htmlutil.Error(w, a.basePath, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		timing.Stop("jwtgen")
@@ -118,12 +119,13 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Report(w)
 		httputil.RedirectQuery(w, r, redirectURI, url.Values{"code": {x}, "state": {state}})
 	default:
-		htmlutil.Error(w, ErrorUnsupportedGrantType, http.StatusBadRequest)
+		htmlutil.Error(w, a.basePath, ErrorUnsupportedGrantType, http.StatusBadRequest)
 	}
 }
 
-func AuthorizeHandler(tokenService TokenCreator, peopleStore people.Store, clients Clients, scope string) http.Handler {
+func AuthorizeHandler(basePath string, tokenService TokenCreator, peopleStore people.Store, clients Clients, scope string) http.Handler {
 	return &authorizeHandler{
+		basePath:     basePath,
 		tokenService: tokenService,
 		peopleStore:  peopleStore,
 		clients:      clients,

@@ -23,6 +23,7 @@ import (
 var indexTpl string
 
 type indexHandler struct {
+	basePath    string
 	settings    *Settings
 	peopleStore people.Store
 	publicKey   *rsa.PublicKey
@@ -50,6 +51,7 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	var codeVerifier = stringutil.RandomBytesString(10)
 	var err = t.ExecuteTemplate(w, "index", map[string]any{
+		"base_path":      i.basePath,
 		"issuer":         strings.TrimRight(i.settings.Issuer, "/"),
 		"public_key":     string(pubBytes),
 		"state":          fmt.Sprint(rand.Int()),
@@ -64,12 +66,13 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"code_challenge": pkce.CodeChallange(codeVerifier),
 	})
 	if err != nil {
-		htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
+		htmlutil.Error(w, i.basePath, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func IndexHandler(settings *Settings, peopleStore people.Store, scope string) http.Handler {
+func IndexHandler(basePath string, settings *Settings, peopleStore people.Store, scope string) http.Handler {
 	return &indexHandler{
+		basePath:    basePath,
 		settings:    settings,
 		peopleStore: peopleStore,
 		scope:       scope,

@@ -5,9 +5,9 @@ import (
 	"net/http"
 )
 
-func NotFoundHandler() http.Handler {
+func NotFoundHandler(basePath string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s %s", r.Method, r.URL)
-		Error(w, "page not found", http.StatusNotFound)
+		Error(w, basePath, "page not found", http.StatusNotFound)
 	})
 }

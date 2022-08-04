@@ -2,7 +2,6 @@ package oauth2
 
 import (
 	"encoding/json"
-	"github.com/cwkr/auth-server/internal/htmlutil"
 	"github.com/cwkr/auth-server/internal/httputil"
 	"log"
 	"net/http"
@@ -64,7 +63,7 @@ func (d *discoveryDocumentHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		IDTokenSigningAlgValuesSupported:           []string{"RS256"},
 	}
 	if bytes, err := json.Marshal(discoveryDocument); err != nil {
-		htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
+		Error(w, ErrorInternal, err.Error(), http.StatusInternalServerError)
 	} else {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(bytes)

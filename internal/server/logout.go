@@ -14,6 +14,7 @@ import (
 )
 
 type logoutHandler struct {
+	basePath     string
 	settings     *Settings
 	sessionStore sessions.Store
 	clients      oauth2.Clients
@@ -42,13 +43,13 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if redirectURI != "" && !strings.HasPrefix(redirectURI, strings.TrimRight(l.settings.Issuer, "/")) {
 		if _, clientExists := l.clients[strings.ToLower(clientID)]; !clientExists {
-			htmlutil.Error(w, "Redirect URI requires valid Client ID", http.StatusBadRequest)
+			htmlutil.Error(w, l.basePath, "Redirect URI requires valid Client ID", http.StatusBadRequest)
 			return
 		}
 
 		if client, found := l.clients[strings.ToLower(clientID)]; found && client.RedirectURIPattern != "" {
 			if !regexp.MustCompile(client.RedirectURIPattern).MatchString(redirectURI) {
-				htmlutil.Error(w, "Redirect URI does not match Clients redirect URI patterns", http.StatusBadRequest)
+				htmlutil.Error(w, l.basePath, "Redirect URI does not match Clients redirect URI patterns", http.StatusBadRequest)
 				return
 			}
 		}
@@ -59,7 +60,7 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !session.IsNew {
 		session.Options.MaxAge = -1
 		if err := session.Save(r, w); err != nil {
-			htmlutil.Error(w, err.Error(), http.StatusInternalServerError)
+			htmlutil.Error(w, l.basePath, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -69,12 +70,13 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.Header().Set("Content-Type", "text/html;charset=UTF-8")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		fmt.Fprintf(w, "<!DOCTYPE html><link rel=\"stylesheet\" href=\"/style\"><h1>Session terminated</h1>")
+		fmt.Fprintf(w, "<!DOCTYPE html><meta charset=\"UTF-8\"><link rel=\"stylesheet\" href=\"%s/style\"><h1>Session terminated</h1>", l.basePath)
 	}
 }
 
-func LogoutHandler(settings *Settings, sessionStore sessions.Store, clients oauth2.Clients) http.Handler {
+func LogoutHandler(basePath string, settings *Settings, sessionStore sessions.Store, clients oauth2.Clients) http.Handler {
 	return &logoutHandler{
+		basePath:     basePath,
 		settings:     settings,
 		sessionStore: sessionStore,
 		clients:      clients,

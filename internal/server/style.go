@@ -3,6 +3,7 @@ package server
 import (
 	_ "embed"
 	"fmt"
+	"github.com/cwkr/auth-server/internal/httputil"
 	"net/http"
 	"time"
 )
@@ -12,9 +13,7 @@ var cssContent string
 
 func StyleHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/css")
-		var gmt, _ = time.LoadLocation("GMT")
-		w.Header().Set("Expires", time.Now().Add(120*time.Hour).In(gmt).Format(time.RFC1123))
+		httputil.Cache(w, 120*time.Hour)
 		fmt.Fprint(w, cssContent)
 	})
 }
