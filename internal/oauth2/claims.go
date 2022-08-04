@@ -38,6 +38,14 @@ func AddExtraClaims(claims map[string]any, extraClaims map[string]string, user U
 				return user.GivenName
 			case "groups_semicolon":
 				return strings.Join(user.Groups, ";")
+			case "phone_number":
+				return user.PhoneNumber
+			case "street_address":
+				return user.StreetAddress
+			case "locality":
+				return user.Locality
+			case "postal_code":
+				return user.PostalCode
 			}
 			return ""
 		})); value != "" {
@@ -62,5 +70,22 @@ func AddEmailClaims(claims map[string]any, user User) {
 	if user.Email != "" {
 		claims["email"] = user.Email
 		claims["email_verified"] = true
+	}
+}
+
+func AddPhoneClaims(claims map[string]any, user User) {
+	if user.PhoneNumber != "" {
+		claims["phone_number"] = user.PhoneNumber
+		claims["phone_number_verified"] = true
+	}
+}
+
+func AddAddressClaims(claims map[string]any, user User) {
+	if user.StreetAddress != "" || user.Locality != "" || user.PostalCode != "" {
+		claims["address"] = map[string]any{
+			"street_address": user.StreetAddress,
+			"locality":       user.Locality,
+			"postal_code":    user.PostalCode,
+		}
 	}
 }

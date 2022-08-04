@@ -104,6 +104,12 @@ func (t tokenCreator) GenerateIDToken(user User, clientID, scope, accessTokenHas
 	if strings.Contains(scope, "email") {
 		AddEmailClaims(claims, user)
 	}
+	if strings.Contains(scope, "phone") {
+		AddPhoneClaims(claims, user)
+	}
+	if strings.Contains(scope, "address") {
+		AddAddressClaims(claims, user)
+	}
 	AddExtraClaims(claims, t.idTokenExtraClaims, user)
 
 	return jwt.Signed(t.signer).Claims(claims).CompactSerialize()

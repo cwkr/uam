@@ -11,29 +11,33 @@ import (
 
 type ldapStore struct {
 	embeddedStore
-	ldapURL        string
-	baseDN         string
-	bindUser       string
-	bindPassword   string
-	attributes     []string
-	userIDAttr     string
-	groupIDAttr    string
-	birthdateAttr  string
-	departmentAttr string
-	emailAttr      string
-	familyNameAttr string
-	givenNameAttr  string
-	settings       *StoreSettings
+	ldapURL           string
+	baseDN            string
+	bindUser          string
+	bindPassword      string
+	attributes        []string
+	userIDAttr        string
+	groupIDAttr       string
+	birthdateAttr     string
+	departmentAttr    string
+	emailAttr         string
+	familyNameAttr    string
+	givenNameAttr     string
+	phoneNumberAttr   string
+	streetAddressAttr string
+	localityAttr      string
+	postalCodeAttr    string
+	settings          *StoreSettings
 }
 
 func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionTTL int64, settings *StoreSettings) (Store, error) {
 	var ldapURL, bindUsername, bindPassword string
-	if url, err := url.Parse(settings.URI); err == nil {
-		if url.User != nil {
-			bindUsername = url.User.Username()
-			bindPassword, _ = url.User.Password()
+	if uri, err := url.Parse(settings.URI); err == nil {
+		if uri.User != nil {
+			bindUsername = uri.User.Username()
+			bindPassword, _ = uri.User.Password()
 		}
-		ldapURL = fmt.Sprintf("%s://%s", url.Scheme, url.Host)
+		ldapURL = fmt.Sprintf("%s://%s", uri.Scheme, uri.Host)
 	} else {
 		return nil, err
 	}
@@ -52,19 +56,23 @@ func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson,
 			sessionName:  sessionName,
 			sessionTTL:   sessionTTL,
 		},
-		ldapURL:        ldapURL,
-		baseDN:         settings.Parameters["base_dn"],
-		bindUser:       bindUsername,
-		bindPassword:   bindPassword,
-		attributes:     attributes,
-		userIDAttr:     settings.Parameters["user_id_attribute"],
-		groupIDAttr:    settings.Parameters["group_id_attribute"],
-		birthdateAttr:  settings.Parameters["birthdate_attribute"],
-		departmentAttr: settings.Parameters["department_attribute"],
-		emailAttr:      settings.Parameters["email_attribute"],
-		familyNameAttr: settings.Parameters["family_name_attribute"],
-		givenNameAttr:  settings.Parameters["given_name_attribute"],
-		settings:       settings,
+		ldapURL:           ldapURL,
+		baseDN:            settings.Parameters["base_dn"],
+		bindUser:          bindUsername,
+		bindPassword:      bindPassword,
+		attributes:        attributes,
+		userIDAttr:        settings.Parameters["user_id_attribute"],
+		groupIDAttr:       settings.Parameters["group_id_attribute"],
+		birthdateAttr:     settings.Parameters["birthdate_attribute"],
+		departmentAttr:    settings.Parameters["department_attribute"],
+		emailAttr:         settings.Parameters["email_attribute"],
+		familyNameAttr:    settings.Parameters["family_name_attribute"],
+		givenNameAttr:     settings.Parameters["given_name_attribute"],
+		phoneNumberAttr:   settings.Parameters["phone_number_attribute"],
+		streetAddressAttr: settings.Parameters["street_address_attribute"],
+		localityAttr:      settings.Parameters["locality_attribute"],
+		postalCodeAttr:    settings.Parameters["postal_code_attribute"],
+		settings:          settings,
 	}, nil
 }
 
@@ -94,7 +102,7 @@ func (p ldapStore) queryGroups(conn *ldap.Conn, userDN string) ([]string, error)
 			if strings.EqualFold("DN", p.groupIDAttr) {
 				groups = append(groups, group.DN)
 			} else {
-				groups = append(groups, group.GetAttributeValue(p.groupIDAttr))
+				groups = append(groups, group.GetEqualFoldAttributeValue(p.groupIDAttr))
 			}
 		}
 	} else {
@@ -126,19 +134,31 @@ func (p ldapStore) queryDetails(conn *ldap.Conn, userID string) (string, *Person
 			var entry = results.Entries[0]
 			userDN = entry.DN
 			if p.birthdateAttr != "" {
-				person.Birthdate = entry.GetAttributeValue(p.birthdateAttr)
+				person.Birthdate = entry.GetEqualFoldAttributeValue(p.birthdateAttr)
 			}
 			if p.departmentAttr != "" {
-				person.Department = entry.GetAttributeValue(p.departmentAttr)
+				person.Department = entry.GetEqualFoldAttributeValue(p.departmentAttr)
 			}
 			if p.emailAttr != "" {
-				person.Email = entry.GetAttributeValue(p.emailAttr)
+				person.Email = entry.GetEqualFoldAttributeValue(p.emailAttr)
 			}
 			if p.familyNameAttr != "" {
-				person.FamilyName = entry.GetAttributeValue(p.familyNameAttr)
+				person.FamilyName = entry.GetEqualFoldAttributeValue(p.familyNameAttr)
 			}
 			if p.givenNameAttr != "" {
-				person.GivenName = entry.GetAttributeValue(p.givenNameAttr)
+				person.GivenName = entry.GetEqualFoldAttributeValue(p.givenNameAttr)
+			}
+			if p.phoneNumberAttr != "" {
+				person.PhoneNumber = entry.GetEqualFoldAttributeValue(p.phoneNumberAttr)
+			}
+			if p.streetAddressAttr != "" {
+				person.StreetAddress = entry.GetEqualFoldAttributeValue(p.streetAddressAttr)
+			}
+			if p.localityAttr != "" {
+				person.Locality = entry.GetEqualFoldAttributeValue(p.localityAttr)
+			}
+			if p.postalCodeAttr != "" {
+				person.PostalCode = entry.GetEqualFoldAttributeValue(p.postalCodeAttr)
 			}
 		} else {
 			return "", nil, ErrPersonNotFound
@@ -188,7 +208,7 @@ func (p ldapStore) Authenticate(userID, password string) (string, error) {
 		if len(results.Entries) == 1 {
 			var entry = results.Entries[0]
 			if err = conn.Bind(entry.DN, password); err == nil {
-				return entry.GetAttributeValue(p.userIDAttr), nil
+				return entry.GetEqualFoldAttributeValue(p.userIDAttr), nil
 			} else {
 				log.Printf("!!! Authenticate failed: %v", err)
 			}

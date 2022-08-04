@@ -91,10 +91,14 @@ It is possible to use a PostgreSQL database or LDAP as people store.
       "base_dn": "dc=example,dc=org",
       "user_id_attribute": "uid",
       "group_id_attribute": "dn",      
-      "department_attribute": "department",
+      "department_attribute": "departmentnumber",
       "email_attribute": "mail",
       "family_name_attribute": "sn",
       "given_name_attribute": "givenname",
+      "phone_number_attribute": "telephonenumber",
+      "street_address_attribute": "street",
+      "locality_attribute": "l",
+      "postal_code_attribute": "postalcode"
     }
   },
   "disable_people_api": false

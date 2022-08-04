@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const OIDCDefaultScope = "openid profile email offline_access"
+const OIDCDefaultScope = "openid profile email phone address offline_access"
 
 type DiscoveryDocument struct {
 	Issuer                                     string   `json:"issuer"`
