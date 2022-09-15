@@ -70,7 +70,7 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.Header().Set("Content-Type", "text/html;charset=UTF-8")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		fmt.Fprintf(w, "<!DOCTYPE html><meta charset=\"UTF-8\"><link rel=\"stylesheet\" href=\"%s/style\"><h1>Session terminated</h1>", l.basePath)
+		fmt.Fprintf(w, "<!DOCTYPE html><meta charset=\"UTF-8\"><link rel=\"stylesheet\" href=\"%s/style.css\"><h1>Session terminated</h1>", l.basePath)
 	}
 }
 

@@ -2,7 +2,9 @@ package server
 
 import (
 	_ "embed"
+	"fmt"
 	"github.com/cwkr/auth-server/internal/httputil"
+	"log"
 	"net/http"
 	"time"
 )
@@ -18,7 +20,9 @@ var favicon32x32 []byte
 
 func FaviconHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s", r.Method, r.URL)
 		w.Header().Set("Content-Type", "image/vnd.microsoft.icon")
+		w.Header().Set("Content-Length", fmt.Sprint(len(favicon)))
 		httputil.Cache(w, 120*time.Hour)
 		w.Write(favicon)
 	})
@@ -26,7 +30,9 @@ func FaviconHandler() http.Handler {
 
 func Favicon16x16Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s", r.Method, r.URL)
 		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Content-Length", fmt.Sprint(len(favicon16x16)))
 		httputil.Cache(w, 120*time.Hour)
 		w.Write(favicon16x16)
 	})
@@ -34,7 +40,9 @@ func Favicon16x16Handler() http.Handler {
 
 func Favicon32x32Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s", r.Method, r.URL)
 		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Content-Length", fmt.Sprint(len(favicon32x32)))
 		httputil.Cache(w, 120*time.Hour)
 		w.Write(favicon32x32)
 	})

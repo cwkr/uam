@@ -123,7 +123,7 @@ func main() {
 	router.NotFoundHandler = htmlutil.NotFoundHandler(basePath)
 	router.Handle(basePath+"/", server.IndexHandler(basePath, settings, peopleStore, scope)).
 		Methods(http.MethodGet)
-	router.Handle(basePath+"/style", server.StyleHandler()).
+	router.Handle(basePath+"/style.css", server.StyleHandler()).
 		Methods(http.MethodGet)
 	router.Handle("/favicon.ico", server.FaviconHandler()).
 		Methods(http.MethodGet)
