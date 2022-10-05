@@ -50,22 +50,8 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		user            User
 	)
 
-	if uid, active := a.peopleStore.IsActiveSession(r); active {
-		timing.Start("store")
-		if person, err := a.peopleStore.Lookup(uid); err == nil {
-			user = User{UserID: uid, Person: *person}
-		} else {
-			htmlutil.Error(w, a.basePath, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		timing.Stop("store")
-	} else {
-		httputil.RedirectQuery(w, r, strings.TrimRight(a.tokenService.Issuer(), "/")+"/login", r.URL.Query())
-		return
-	}
-
 	if stringutil.IsAnyEmpty(responseType, clientID, redirectURI) {
-		htmlutil.Error(w, a.basePath, ErrorInvalidRequest, http.StatusBadRequest)
+		htmlutil.Error(w, a.basePath, "client_id, redirect_uri and response_type parameters are required", http.StatusBadRequest)
 		return
 	}
 
@@ -79,6 +65,20 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			htmlutil.Error(w, a.basePath, ErrorRedirectURIMismatch, http.StatusBadRequest)
 			return
 		}
+	}
+
+	if uid, active := a.peopleStore.IsActiveSession(r); active {
+		timing.Start("store")
+		if person, err := a.peopleStore.Lookup(uid); err == nil {
+			user = User{UserID: uid, Person: *person}
+		} else {
+			htmlutil.Error(w, a.basePath, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		timing.Stop("store")
+	} else {
+		httputil.RedirectQuery(w, r, strings.TrimRight(a.tokenService.Issuer(), "/")+"/login", r.URL.Query())
+		return
 	}
 
 	switch responseType {
