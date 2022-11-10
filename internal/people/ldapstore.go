@@ -30,7 +30,7 @@ type ldapStore struct {
 	settings          *StoreSettings
 }
 
-func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionTTL int64, settings *StoreSettings) (Store, error) {
+func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionTTL int64, settings *StoreSettings) (Store, error) {
 	var ldapURL, bindUsername, bindPassword string
 	if uri, err := url.Parse(settings.URI); err == nil {
 		if uri.User != nil {
@@ -53,7 +53,6 @@ func NewLdapStore(sessionStore sessions.Store, users map[string]AuthenticPerson,
 		embeddedStore: embeddedStore{
 			sessionStore: sessionStore,
 			users:        users,
-			sessionName:  sessionName,
 			sessionTTL:   sessionTTL,
 		},
 		ldapURL:           ldapURL,

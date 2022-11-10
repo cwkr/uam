@@ -104,24 +104,24 @@ func main() {
 	var peopleStore people.Store
 	if settings.PeopleStore != nil {
 		if strings.HasPrefix(settings.PeopleStore.URI, "postgresql:") {
-			if peopleStore, err = people.NewSqlStore(sessionStore, users, settings.SessionName, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
+			if peopleStore, err = people.NewSqlStore(sessionStore, users, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
 				panic(err)
 			}
 		} else if strings.HasPrefix(settings.PeopleStore.URI, "ldap:") || strings.HasPrefix(settings.PeopleStore.URI, "ldaps:") {
-			if peopleStore, err = people.NewLdapStore(sessionStore, users, settings.SessionName, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
+			if peopleStore, err = people.NewLdapStore(sessionStore, users, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
 				panic(err)
 			}
 		} else {
 			panic(errors.New("unsupported or empty store uri: " + settings.PeopleStore.URI))
 		}
 	} else {
-		peopleStore = people.NewEmbeddedStore(sessionStore, users, settings.SessionName, int64(settings.SessionTTL))
+		peopleStore = people.NewEmbeddedStore(sessionStore, users, int64(settings.SessionTTL))
 	}
 
 	var router = mux.NewRouter()
 
 	router.NotFoundHandler = htmlutil.NotFoundHandler(basePath)
-	router.Handle(basePath+"/", server.IndexHandler(basePath, settings, peopleStore, scope)).
+	router.Handle(basePath+"/", server.IndexHandler(basePath, settings, scope)).
 		Methods(http.MethodGet)
 	router.Handle(basePath+"/style.css", server.StyleHandler()).
 		Methods(http.MethodGet)
@@ -131,7 +131,7 @@ func main() {
 		Methods(http.MethodGet)
 	router.Handle(basePath+"/favicon-32x32.png", server.Favicon32x32Handler()).
 		Methods(http.MethodGet)
-	router.Handle(basePath+"/login", server.LoginHandler(basePath, peopleStore, settings.Issuer)).
+	router.Handle(basePath+"/login", server.LoginHandler(basePath, peopleStore, clients, settings.Issuer, settings.SessionName)).
 		Methods(http.MethodGet, http.MethodPost)
 	router.Handle(basePath+"/logout", server.LogoutHandler(basePath, settings, sessionStore, clients))
 	router.Handle(basePath+"/health", server.HealthHandler(peopleStore)).
@@ -141,11 +141,11 @@ func main() {
 		Methods(http.MethodGet, http.MethodOptions)
 	router.Handle(basePath+"/token", oauth2.TokenHandler(tokenService, peopleStore, clients, settings.EnableRefreshTokenRotation)).
 		Methods(http.MethodOptions, http.MethodPost)
-	router.Handle(basePath+"/authorize", oauth2.AuthorizeHandler(basePath, tokenService, peopleStore, clients, scope)).
+	router.Handle(basePath+"/authorize", oauth2.AuthorizeHandler(basePath, tokenService, peopleStore, clients, scope, settings.SessionName)).
 		Methods(http.MethodGet)
 	router.Handle(basePath+"/.well-known/openid-configuration", oauth2.DiscoveryDocumentHandler(settings.Issuer, scope)).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle(basePath+"/userinfo", oauth2.UserInfoHandler(peopleStore, tokenService, settings.AccessTokenExtraClaims, settings.SessionName)).
+	router.Handle(basePath+"/userinfo", oauth2.UserInfoHandler(peopleStore, tokenService, settings.AccessTokenExtraClaims)).
 		Methods(http.MethodGet, http.MethodOptions)
 
 	if !settings.DisablePeopleAPI {

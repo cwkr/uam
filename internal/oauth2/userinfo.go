@@ -13,7 +13,6 @@ type userInfoHandler struct {
 	peopleStore   people.Store
 	tokenVerifier TokenVerifier
 	extraClaims   map[string]string
-	sessionName   string
 }
 
 func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -28,14 +27,14 @@ func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var accessToken = httputil.ExtractAccessToken(r)
 	if accessToken == "" {
-		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"%s\"", u.sessionName))
+		w.Header().Set("WWW-Authenticate", "Bearer realm=\"userinfo\"")
 		Error(w, "unauthorized", "authentication required", http.StatusUnauthorized)
 		return
 	}
 
 	var userID, authError = u.tokenVerifier.VerifyAccessToken(accessToken)
 	if authError != nil {
-		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"%s\", error=\"invalid_token\", error_description=\"%s\"", u.sessionName, authError.Error()))
+		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"userinfo\", error=\"invalid_token\", error_description=\"%s\"", authError.Error()))
 		Error(w, "invalid_token", authError.Error(), http.StatusUnauthorized)
 		return
 	}
@@ -68,11 +67,10 @@ func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func UserInfoHandler(peopleStore people.Store, tokenVerifier TokenVerifier, extraClaims map[string]string, sessionName string) http.Handler {
+func UserInfoHandler(peopleStore people.Store, tokenVerifier TokenVerifier, extraClaims map[string]string) http.Handler {
 	return &userInfoHandler{
 		peopleStore:   peopleStore,
 		tokenVerifier: tokenVerifier,
 		extraClaims:   extraClaims,
-		sessionName:   sessionName,
 	}
 }

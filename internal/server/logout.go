@@ -41,18 +41,27 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if redirectURI != "" && !strings.HasPrefix(redirectURI, strings.TrimRight(l.settings.Issuer, "/")) {
-		if _, clientExists := l.clients[strings.ToLower(clientID)]; !clientExists {
-			htmlutil.Error(w, l.basePath, "Redirect URI requires valid Client ID", http.StatusBadRequest)
-			return
-		}
+	if clientID == "" {
+		htmlutil.Error(w, l.basePath, "client_id or id_token_hint parameters are required", http.StatusBadRequest)
+		return
+	}
 
+	if _, clientExists := l.clients[strings.ToLower(clientID)]; !clientExists {
+		htmlutil.Error(w, l.basePath, "invalid_client", http.StatusForbidden)
+		return
+	}
+
+	if redirectURI != "" && !strings.HasPrefix(redirectURI, strings.TrimRight(l.settings.Issuer, "/")) {
 		if client, found := l.clients[strings.ToLower(clientID)]; found && client.RedirectURIPattern != "" {
 			if !regexp.MustCompile(client.RedirectURIPattern).MatchString(redirectURI) {
-				htmlutil.Error(w, l.basePath, "Redirect URI does not match Clients redirect URI patterns", http.StatusBadRequest)
+				htmlutil.Error(w, l.basePath, "post_logout_redirect_uri does not match Clients redirect URI pattern", http.StatusBadRequest)
 				return
 			}
 		}
+	}
+
+	if client, found := l.clients[strings.ToLower(clientID)]; found && client.SessionName != "" {
+		session, _ = l.sessionStore.Get(r, client.SessionName)
 	}
 
 	httputil.NoCache(w)

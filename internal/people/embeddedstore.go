@@ -17,15 +17,13 @@ type AuthenticPerson struct {
 type embeddedStore struct {
 	sessionStore sessions.Store
 	users        map[string]AuthenticPerson
-	sessionName  string
 	sessionTTL   int64
 }
 
-func NewEmbeddedStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionTTL int64) Store {
+func NewEmbeddedStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionTTL int64) Store {
 	return &embeddedStore{
 		sessionStore: sessionStore,
 		users:        users,
-		sessionName:  sessionName,
 		sessionTTL:   sessionTTL,
 	}
 }
@@ -45,8 +43,8 @@ func (e embeddedStore) Authenticate(userID, password string) (string, error) {
 	return "", ErrAuthenticationFailed
 }
 
-func (e embeddedStore) IsActiveSession(r *http.Request) (string, bool) {
-	var session, _ = e.sessionStore.Get(r, e.sessionName)
+func (e embeddedStore) IsSessionActive(r *http.Request, sessionName string) (string, bool) {
+	var session, _ = e.sessionStore.Get(r, sessionName)
 
 	var uid, sct = session.Values["uid"], session.Values["sct"]
 
@@ -57,17 +55,8 @@ func (e embeddedStore) IsActiveSession(r *http.Request) (string, bool) {
 	return "", false
 }
 
-func (e embeddedStore) AuthenticationTime(r *http.Request) (time.Time, time.Time) {
-	var session, _ = e.sessionStore.Get(r, e.sessionName)
-	if sct := session.Values["sct"]; sct != nil {
-		var ctime = time.Unix(sct.(int64), 0)
-		return ctime, ctime.Add(time.Duration(e.sessionTTL) * time.Second)
-	}
-	return time.Time{}, time.Time{}
-}
-
-func (e embeddedStore) SaveSession(r *http.Request, w http.ResponseWriter, userID string, authTime time.Time) error {
-	var session, _ = e.sessionStore.Get(r, e.sessionName)
+func (e embeddedStore) SaveSession(r *http.Request, w http.ResponseWriter, authTime time.Time, userID, sessionName string) error {
+	var session, _ = e.sessionStore.Get(r, sessionName)
 	session.Values["uid"] = userID
 	session.Values["sct"] = authTime.Unix()
 	if err := session.Save(r, w); err != nil {

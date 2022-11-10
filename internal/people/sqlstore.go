@@ -15,7 +15,7 @@ type sqlStore struct {
 	settings *StoreSettings
 }
 
-func NewSqlStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionName string, sessionTTL int64, settings *StoreSettings) (Store, error) {
+func NewSqlStore(sessionStore sessions.Store, users map[string]AuthenticPerson, sessionTTL int64, settings *StoreSettings) (Store, error) {
 	dbconn, err := sql.Open("postgres", settings.URI)
 	if err != nil {
 		return nil, err
@@ -24,7 +24,6 @@ func NewSqlStore(sessionStore sessions.Store, users map[string]AuthenticPerson, 
 		embeddedStore: embeddedStore{
 			sessionStore: sessionStore,
 			users:        users,
-			sessionName:  sessionName,
 			sessionTTL:   sessionTTL,
 		},
 		dbconn:   dbconn,

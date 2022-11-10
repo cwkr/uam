@@ -56,9 +56,16 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if client, clientExists := t.clients[strings.ToLower(clientID)]; clientExists {
 		if clientSecret != "" || grantType == "client_credentials" {
 			timing.Start("secret")
-			if err := bcrypt.CompareHashAndPassword([]byte(client.SecretHash), []byte(clientSecret)); err != nil {
-				Error(w, ErrorInvalidClient, "client authentication failed", http.StatusUnauthorized)
-				return
+			if strings.HasPrefix(client.Secret, "$2") {
+				if err := bcrypt.CompareHashAndPassword([]byte(client.Secret), []byte(clientSecret)); err != nil {
+					Error(w, ErrorInvalidClient, "client authentication failed: "+err.Error(), http.StatusUnauthorized)
+					return
+				}
+			} else {
+				if clientSecret != client.Secret {
+					Error(w, ErrorInvalidClient, "client authentication failed", http.StatusUnauthorized)
+					return
+				}
 			}
 			timing.Stop("secret")
 		}

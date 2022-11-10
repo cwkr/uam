@@ -32,6 +32,7 @@ type authorizeHandler struct {
 	peopleStore  people.Store
 	clients      Clients
 	scope        string
+	sessionName  string
 }
 
 func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +48,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		challenge       = strings.TrimSpace(r.FormValue("code_challenge"))
 		challengeMethod = strings.TrimSpace(r.FormValue("code_challenge_method"))
 		nonce           = strings.TrimSpace(r.FormValue("nonce"))
+		sessionName     = a.sessionName
 		user            User
 	)
 
@@ -55,7 +57,11 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, clientExists := a.clients[clientID]; !clientExists {
+	if client, clientExists := a.clients[clientID]; clientExists {
+		if client.SessionName != "" {
+			sessionName = client.SessionName
+		}
+	} else {
 		htmlutil.Error(w, a.basePath, ErrorInvalidClient, http.StatusForbidden)
 		return
 	}
@@ -67,7 +73,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if uid, active := a.peopleStore.IsActiveSession(r); active {
+	if uid, active := a.peopleStore.IsSessionActive(r, sessionName); active {
 		timing.Start("store")
 		if person, err := a.peopleStore.Lookup(uid); err == nil {
 			user = User{UserID: uid, Person: *person}
@@ -123,12 +129,13 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func AuthorizeHandler(basePath string, tokenService TokenCreator, peopleStore people.Store, clients Clients, scope string) http.Handler {
+func AuthorizeHandler(basePath string, tokenService TokenCreator, peopleStore people.Store, clients Clients, scope, sessionName string) http.Handler {
 	return &authorizeHandler{
 		basePath:     basePath,
 		tokenService: tokenService,
 		peopleStore:  peopleStore,
 		clients:      clients,
 		scope:        scope,
+		sessionName:  sessionName,
 	}
 }

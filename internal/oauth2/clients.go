@@ -4,7 +4,8 @@ import "regexp"
 
 type Client struct {
 	RedirectURIPattern string `json:"redirect_uri_pattern,omitempty"`
-	SecretHash         string `json:"secret_hash,omitempty"`
+	Secret             string `json:"secret,omitempty"`
+	SessionName        string `json:"session_name,omitempty"`
 }
 
 type Clients map[string]Client
