@@ -10,6 +10,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -22,18 +23,27 @@ const (
 //go:embed templates/login.gohtml
 var loginTpl string
 
+func LoadLoginTemplate(filename string) error {
+	if bytes, err := os.ReadFile(filename); err == nil {
+		loginTpl = string(bytes)
+		return nil
+	} else {
+		return err
+	}
+}
+
 type loginHandler struct {
 	basePath    string
 	peopleStore people.Store
 	clients     oauth2.Clients
 	issuer      string
 	sessionName string
+	tpl         *template.Template
 }
 
 func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 	var message string
-	var t, _ = template.New("login").Parse(loginTpl)
 
 	var userID, password, clientID, sessionName string
 
@@ -77,12 +87,13 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html;charset=UTF-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	var err = t.ExecuteTemplate(w, "login", map[string]any{
-		"base_path": j.basePath,
-		"issuer":    strings.TrimRight(j.issuer, "/"),
-		"query":     template.HTML("?" + r.URL.RawQuery),
-		"message":   message,
-		"userID":    userID,
+	var err = j.tpl.ExecuteTemplate(w, "login", map[string]any{
+		"base_path":      j.basePath,
+		"issuer":         strings.TrimRight(j.issuer, "/"),
+		"query":          template.HTML("?" + r.URL.RawQuery),
+		"message":        message,
+		"user_id":        userID,
+		"password_empty": password == "",
 	})
 	if err != nil {
 		htmlutil.Error(w, j.basePath, err.Error(), http.StatusInternalServerError)
@@ -96,5 +107,6 @@ func LoginHandler(basePath string, peopleStore people.Store, clients oauth2.Clie
 		clients:     clients,
 		issuer:      issuer,
 		sessionName: sessionName,
+		tpl:         template.Must(template.New("login").Parse(loginTpl)),
 	}
 }

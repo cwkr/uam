@@ -25,11 +25,11 @@ type indexHandler struct {
 	settings  *Settings
 	publicKey *rsa.PublicKey
 	scope     string
+	tpl       *template.Template
 }
 
 func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
-	var t, _ = template.New("index").Parse(indexTpl)
 
 	var pubASN1, _ = x509.MarshalPKIXPublicKey(i.settings.PublicKey())
 
@@ -41,7 +41,7 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	httputil.NoCache(w)
 
 	var codeVerifier = stringutil.RandomBytesString(10)
-	var err = t.ExecuteTemplate(w, "index", map[string]any{
+	var err = i.tpl.ExecuteTemplate(w, "index", map[string]any{
 		"base_path":      i.basePath,
 		"issuer":         strings.TrimRight(i.settings.Issuer, "/"),
 		"public_key":     string(pubBytes),
@@ -62,5 +62,6 @@ func IndexHandler(basePath string, settings *Settings, scope string) http.Handle
 		basePath: basePath,
 		settings: settings,
 		scope:    scope,
+		tpl:      template.Must(template.New("index").Parse(indexTpl)),
 	}
 }

@@ -33,6 +33,7 @@ type Settings struct {
 	PeopleStore                *people.StoreSettings             `json:"people_store,omitempty"`
 	DisablePeopleAPI           bool                              `json:"disable_people_api,omitempty"`
 	PeopleAPICustomVersions    map[string]map[string]string      `json:"people_api_custom_versions,omitempty"`
+	LoginTemplate              string                            `json:"login_template,omitempty"`
 	rsaSigningKey              *rsa.PrivateKey
 	rsaSigningKeyID            string
 	rsaAdditionalKeys          map[string]*rsa.PublicKey

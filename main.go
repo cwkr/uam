@@ -56,6 +56,15 @@ func main() {
 		panic(err)
 	}
 
+	if settings.LoginTemplate != "" {
+		var filename = filepath.Join(filepath.Dir(settingsFilename), strings.TrimPrefix(settings.LoginTemplate, "@"))
+		log.Printf("Loading login form template from %s", filename)
+		err = server.LoadLoginTemplate(filename)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	if saveSettings {
 		log.Printf("Saving settings to %s", settingsFilename)
 		configJson, _ := json.MarshalIndent(settings, "", "  ")
