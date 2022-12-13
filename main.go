@@ -95,7 +95,7 @@ func main() {
 	var sessionStore = sessions.NewCookieStore([]byte(settings.SessionSecret))
 	sessionStore.Options.HttpOnly = true
 	sessionStore.Options.MaxAge = 0
-	sessionStore.Options.SameSite = http.SameSiteStrictMode
+	sessionStore.Options.SameSite = http.SameSiteLaxMode
 	if issuerUrl, err := url.Parse(settings.Issuer); err == nil {
 		if issuerUrl.Path != "/" {
 			basePath = strings.TrimSuffix(issuerUrl.Path, "/")
