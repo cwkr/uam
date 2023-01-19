@@ -15,11 +15,6 @@ import (
 	"time"
 )
 
-const (
-	FieldUserID   = "user_id"
-	FieldPassword = "password"
-)
-
 //go:embed templates/login.gohtml
 var loginTpl string
 
@@ -55,8 +50,11 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		sessionName = j.sessionName
-		userID = strings.TrimSpace(r.PostFormValue(FieldUserID))
-		password = r.PostFormValue(FieldPassword)
+		userID = strings.TrimSpace(r.PostFormValue("user_id"))
+		if userID == "" {
+			userID = strings.TrimSpace(r.PostFormValue("username"))
+		}
+		password = r.PostFormValue("password")
 		if stringutil.IsAnyEmpty(userID, password) {
 			message = "username and password must not be empty"
 		} else {
