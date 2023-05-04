@@ -50,10 +50,14 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// debug output of parameters
-	log.Printf("grant_type=%s client_id=%s client_secret=%s code=%s code_verifier=%s refresh_token=%s",
+	log.Printf("grant_type=%q client_id=%q client_secret=%q code=%q code_verifier=%q refresh_token=%q",
 		grantType, clientID, strings.Repeat("*", utf8.RuneCountInString(clientSecret)), code, codeVerifier, refreshToken)
 
 	if client, clientExists := t.clients[strings.ToLower(clientID)]; clientExists {
+		if grantType == GrantTypeClientCredentials && client.Secret == "" {
+			Error(w, ErrorUnauthorizedClient, "client has no secret", http.StatusBadRequest)
+			return
+		}
 		if clientSecret != "" || grantType == "client_credentials" {
 			timing.Start("secret")
 			if strings.HasPrefix(client.Secret, "$2") {
@@ -75,6 +79,40 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch grantType {
+	case GrantTypePassword:
+		var (
+			userID   = strings.TrimSpace(r.PostFormValue("username"))
+			password = strings.TrimSpace(r.PostFormValue("password"))
+			scope    = strings.TrimSpace(r.PostFormValue("scope"))
+		)
+
+		// debug output of parameters
+		log.Printf("username=%q password=%q scope=%q", userID, strings.Repeat("*", utf8.RuneCountInString(password)), scope)
+
+		if stringutil.IsAnyEmpty(clientID, userID, password) {
+			Error(w, ErrorInvalidRequest, "client_id, username and password parameters are required", http.StatusBadRequest)
+			return
+		}
+
+		var err error
+		userID, err = t.peopleStore.Authenticate(userID, password)
+		if err != nil {
+			Error(w, ErrorInvalidGrant, "invalid username and password combination", http.StatusBadRequest)
+			return
+		}
+
+		timing.Start("store")
+		var person *people.Person
+		person, err = t.peopleStore.Lookup(userID)
+		if err != nil {
+			Error(w, ErrorInternal, "person not found", http.StatusInternalServerError)
+			return
+		}
+		timing.Stop("store")
+		var user = User{Person: *person, UserID: userID}
+		timing.Start("jwtgen")
+		accessToken, _ = t.tokenService.GenerateAccessToken(user, clientID, scope)
+		timing.Stop("jwtgen")
 	case GrantTypeAuthorizationCode:
 		var userID, scope, challenge, nonce, valid = t.tokenService.VerifyAuthCode(code)
 		if !valid {
@@ -153,7 +191,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		accessToken, _ = t.tokenService.GenerateAccessToken(User{UserID: clientID}, clientID, "")
 		timing.Stop("jwtgen")
 	default:
-		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code', 'client_credentials' and 'refresh_token' are supported", http.StatusBadRequest)
+		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code', 'client_credentials', 'password' and 'refresh_token' are supported", http.StatusBadRequest)
 		return
 	}
 

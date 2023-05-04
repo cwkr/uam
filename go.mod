@@ -10,7 +10,7 @@ require (
 	github.com/kisielk/sqlstruct v0.0.0-20210630145711-dae28ed37023
 	github.com/lib/pq v1.10.6
 	github.com/tidwall/jsonc v0.3.2
-	golang.org/x/crypto v0.5.0
+	golang.org/x/crypto v0.7.0
 )
 
 require (

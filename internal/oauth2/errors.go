@@ -27,6 +27,8 @@ const (
 	// requested client id
 	ErrorRedirectURIMismatch = "redirect_uri_mismatch"
 
+	ErrorUnauthorizedClient = "unauthorized_client"
+
 	// ErrorUnsupportedGrantType – If a grant type is requested that the
 	// authorization server doesn't recognize, use this code. Note that
 	// unknown grant types also use this specific error code rather than using

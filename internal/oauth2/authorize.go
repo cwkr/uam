@@ -58,6 +58,10 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if client, clientExists := a.clients[clientID]; clientExists {
+		if responseType == ResponseTypeToken && client.DisableImplicit {
+			htmlutil.Error(w, a.basePath, ErrorUnsupportedGrantType, http.StatusBadRequest)
+			return
+		}
 		if client.SessionName != "" {
 			sessionName = client.SessionName
 		}
