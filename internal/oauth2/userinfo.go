@@ -32,7 +32,7 @@ func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var userID, authError = u.tokenVerifier.VerifyAccessToken(accessToken)
+	var userID, authError = u.tokenVerifier.VerifyToken(accessToken)
 	if authError != nil {
 		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"userinfo\", error=\"invalid_token\", error_description=\"%s\"", authError.Error()))
 		Error(w, "invalid_token", authError.Error(), http.StatusUnauthorized)

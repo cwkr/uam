@@ -33,10 +33,11 @@ type Settings struct {
 	PeopleStore                *people.StoreSettings             `json:"people_store,omitempty"`
 	DisablePeopleAPI           bool                              `json:"disable_people_api,omitempty"`
 	PeopleAPICustomVersions    map[string]map[string]string      `json:"people_api_custom_versions,omitempty"`
+	PeopleAPIRequireAuthN      bool                              `json:"people_api_require_authn"`
 	LoginTemplate              string                            `json:"login_template,omitempty"`
 	rsaSigningKey              *rsa.PrivateKey
 	rsaSigningKeyID            string
-	rsaAdditionalKeys          map[string]*rsa.PublicKey
+	additionalPublicKeys       map[string]any
 }
 
 func NewDefaultSettings() *Settings {
@@ -93,7 +94,7 @@ func (s *Settings) LoadKeys(basePath string, genNew bool) error {
 		s.rsaSigningKeyID = strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
 	}
 
-	s.rsaAdditionalKeys, err = oauth2.LoadPublicKeys(basePath, s.AdditionalKeys)
+	s.additionalPublicKeys, err = oauth2.LoadPublicKeys(basePath, s.AdditionalKeys)
 	return err
 }
 
@@ -109,10 +110,10 @@ func (s Settings) KeyID() string {
 	return s.rsaSigningKeyID
 }
 
-func (s Settings) AllKeys() map[string]*rsa.PublicKey {
-	var allKeys = make(map[string]*rsa.PublicKey)
+func (s Settings) AllKeys() map[string]any {
+	var allKeys = make(map[string]any)
 	allKeys[s.rsaSigningKeyID] = s.PublicKey()
-	for kid, publicKey := range s.rsaAdditionalKeys {
+	for kid, publicKey := range s.additionalPublicKeys {
 		allKeys[kid] = publicKey
 	}
 	return allKeys

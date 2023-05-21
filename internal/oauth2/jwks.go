@@ -1,7 +1,6 @@
 package oauth2
 
 import (
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -40,8 +39,8 @@ func (j *jwksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
-func LoadPublicKeys(basePath string, keys []string) (map[string]*rsa.PublicKey, error) {
-	var rsaPublicKeys = make(map[string]*rsa.PublicKey)
+func LoadPublicKeys(basePath string, keys []string) (map[string]any, error) {
+	var publicKeys = make(map[string]any)
 
 	for i, key := range keys {
 		var (
@@ -63,7 +62,7 @@ func LoadPublicKeys(basePath string, keys []string) (map[string]*rsa.PublicKey, 
 			return nil, errors.New("cannot load key")
 		}
 
-		var rsaPublicKey *rsa.PublicKey
+		var publicKey any
 
 		switch strings.TrimSpace(strings.ToLower(block.Type)) {
 		case "rsa private key":
@@ -71,37 +70,37 @@ func LoadPublicKeys(basePath string, keys []string) (map[string]*rsa.PublicKey, 
 			if err != nil {
 				return nil, err
 			}
-			rsaPublicKey = &rsaPrivateKey.PublicKey
+			publicKey = &rsaPrivateKey.PublicKey
+		case "ec private key":
+			ecPrivateKey, err := x509.ParseECPrivateKey(block.Bytes)
+			if err != nil {
+				return nil, err
+			}
+			publicKey = &ecPrivateKey.PublicKey
 		case "rsa public key":
 			var err error
-			rsaPublicKey, err = x509.ParsePKCS1PublicKey(block.Bytes)
+			publicKey, err = x509.ParsePKCS1PublicKey(block.Bytes)
 			if err != nil {
 				return nil, err
 			}
 		case "public key":
 			var err error
-			var ok bool
-			var k any
-			k, err = x509.ParsePKIXPublicKey(block.Bytes)
+			publicKey, err = x509.ParsePKIXPublicKey(block.Bytes)
 			if err != nil {
 				return nil, err
-			}
-			rsaPublicKey, ok = k.(*rsa.PublicKey)
-			if !ok {
-				return nil, errors.New("only rsa keys are supported")
 			}
 		default:
 			return nil, errors.New("unsupported key type: " + block.Type)
 		}
 
-		rsaPublicKeys[kid] = rsaPublicKey
+		publicKeys[kid] = publicKey
 	}
 
-	return rsaPublicKeys, nil
+	return publicKeys, nil
 }
 
-// ToJwks creates JSON Web Keys from multiple RSA public keys
-func ToJwks(publicKeys map[string]*rsa.PublicKey) []jose.JSONWebKey {
+// ToJwks creates JSON Web Keys from multiple public keys
+func ToJwks(publicKeys map[string]any) []jose.JSONWebKey {
 	var keys = make([]jose.JSONWebKey, 0, len(publicKeys))
 	for kid, publicKey := range publicKeys {
 		keys = append(keys, jose.JSONWebKey{
@@ -113,7 +112,15 @@ func ToJwks(publicKeys map[string]*rsa.PublicKey) []jose.JSONWebKey {
 	return keys
 }
 
-func JwksHandler(publicKeys map[string]*rsa.PublicKey) http.Handler {
+func ToPublicKeys(jwks []jose.JSONWebKey) map[string]any {
+	var publicKeys = make(map[string]any, len(jwks))
+	for _, jwk := range jwks {
+		publicKeys[jwk.KeyID] = jwk.Key
+	}
+	return publicKeys
+}
+
+func JwksHandler(publicKeys map[string]any) http.Handler {
 	return &jwksHandler{
 		keySet: jose.JSONWebKeySet{
 			Keys: ToJwks(publicKeys),

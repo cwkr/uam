@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/cwkr/auth-server/internal/httputil"
 	"github.com/cwkr/auth-server/internal/oauth2"
 	"github.com/cwkr/auth-server/internal/people"
@@ -13,16 +14,34 @@ import (
 type peopleAPIHandler struct {
 	peopleStore    people.Store
 	customVersions map[string]map[string]string
+	requireAuthN   bool
+	tokenVerifier  oauth2.TokenVerifier
 }
 
 func (p *peopleAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
-	httputil.AllowCORS(w, r, []string{http.MethodGet, http.MethodOptions}, false)
+	httputil.AllowCORS(w, r, []string{http.MethodGet, http.MethodOptions}, p.requireAuthN)
 
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
+	}
+
+	if p.requireAuthN {
+		var accessToken = httputil.ExtractAccessToken(r)
+		if accessToken == "" {
+			w.Header().Set("WWW-Authenticate", "Bearer realm=\"userinfo\"")
+			oauth2.Error(w, "unauthorized", "authentication required", http.StatusUnauthorized)
+			return
+		}
+
+		var _, authError = p.tokenVerifier.VerifyToken(accessToken)
+		if authError != nil {
+			w.Header().Set("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"people\", error=\"invalid_token\", error_description=\"%s\"", authError.Error()))
+			oauth2.Error(w, "invalid_token", authError.Error(), http.StatusUnauthorized)
+			return
+		}
 	}
 
 	var pathVars = mux.Vars(r)
@@ -59,9 +78,11 @@ func (p *peopleAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func PeopleAPIHandler(peopleStore people.Store, customVersions map[string]map[string]string) http.Handler {
+func PeopleAPIHandler(peopleStore people.Store, customVersions map[string]map[string]string, requireAuthN bool, tokenVerifier oauth2.TokenVerifier) http.Handler {
 	return &peopleAPIHandler{
 		peopleStore:    peopleStore,
 		customVersions: customVersions,
+		requireAuthN:   requireAuthN,
+		tokenVerifier:  tokenVerifier,
 	}
 }

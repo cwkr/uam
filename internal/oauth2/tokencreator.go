@@ -31,7 +31,6 @@ type User struct {
 }
 
 type TokenCreator interface {
-	TokenVerifier
 	GenerateAccessToken(user User, clientID, scope string) (string, error)
 	GenerateIDToken(user User, clientID, scope, accessTokenHash, nonce string) (string, error)
 	GenerateAuthCode(userID, clientID, scope, challenge, nonce string) (string, error)
@@ -234,7 +233,7 @@ func (t tokenCreator) VerifyRefreshToken(rawToken string) (string, string, strin
 	}
 }
 
-func NewTokenService(privateKey *rsa.PrivateKey, keyID, issuer, scope string,
+func NewTokenCreator(privateKey *rsa.PrivateKey, keyID, issuer, scope string,
 	accessTokenTTL, refreshTokenTTL, idTokenTTL int64,
 	accessTokenExtraClaims, idTokenExtraClaims map[string]string) (TokenCreator, error) {
 	var signer, err = jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}, (&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", keyID))

@@ -23,7 +23,7 @@ func main() {
 	flag.Parse()
 
 	if keySize < 1024 {
-		panic("key size less than 512")
+		panic("key size less than 1024")
 	}
 
 	_, keyBytes, err = oauth2.GeneratePrivateKey(keySize)

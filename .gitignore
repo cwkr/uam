@@ -6,7 +6,9 @@
 *.dylib
 
 auth-server
-cmd/genrsa/genrsa
+cmd/genrsakey/genrsakey
+cmd/jwks2pem/jwks2pem
+cmd/pem2jwks/pem2jwks
 
 # Test binary, built with `go test -c`
 *.test

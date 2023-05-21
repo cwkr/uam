@@ -18,13 +18,13 @@ func main() {
 	flag.StringVar(&outFilename, "o", "", "output file")
 	flag.Parse()
 
-	var rsaPublicKeys, err = oauth2.LoadPublicKeys("./", flag.Args())
+	var publicKeys, err = oauth2.LoadPublicKeys("./", flag.Args())
 	if err != nil {
 		panic(err)
 	}
 
 	var keySet = jose.JSONWebKeySet{
-		Keys: oauth2.ToJwks(rsaPublicKeys),
+		Keys: oauth2.ToJwks(publicKeys),
 	}
 
 	var bytes []byte

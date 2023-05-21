@@ -22,8 +22,9 @@ import (
 )
 
 var (
-	settings     *server.Settings
-	tokenService oauth2.TokenCreator
+	settings      *server.Settings
+	tokenCreator  oauth2.TokenCreator
+	tokenVarifier oauth2.TokenVerifier
 )
 
 func main() {
@@ -76,7 +77,7 @@ func main() {
 
 	var scope = strings.TrimSpace(oauth2.OIDCDefaultScope + " " + settings.ExtraScope)
 
-	tokenService, err = oauth2.NewTokenService(
+	tokenCreator, err = oauth2.NewTokenCreator(
 		settings.PrivateKey(),
 		settings.KeyID(),
 		settings.Issuer,
@@ -90,6 +91,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	tokenVarifier = oauth2.NewTokenVerifier(settings.AllKeys())
 
 	var basePath = ""
 	var sessionStore = sessions.NewCookieStore([]byte(settings.SessionSecret))
@@ -148,17 +151,17 @@ func main() {
 
 	router.Handle(basePath+"/jwks", oauth2.JwksHandler(settings.AllKeys())).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle(basePath+"/token", oauth2.TokenHandler(tokenService, peopleStore, clients, settings.EnableRefreshTokenRotation)).
+	router.Handle(basePath+"/token", oauth2.TokenHandler(tokenCreator, peopleStore, clients, settings.EnableRefreshTokenRotation)).
 		Methods(http.MethodOptions, http.MethodPost)
-	router.Handle(basePath+"/authorize", oauth2.AuthorizeHandler(basePath, tokenService, peopleStore, clients, scope, settings.SessionName)).
+	router.Handle(basePath+"/authorize", oauth2.AuthorizeHandler(basePath, tokenCreator, peopleStore, clients, scope, settings.SessionName)).
 		Methods(http.MethodGet)
 	router.Handle(basePath+"/.well-known/openid-configuration", oauth2.DiscoveryDocumentHandler(settings.Issuer, scope)).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle(basePath+"/userinfo", oauth2.UserInfoHandler(peopleStore, tokenService, settings.AccessTokenExtraClaims)).
+	router.Handle(basePath+"/userinfo", oauth2.UserInfoHandler(peopleStore, tokenVarifier, settings.AccessTokenExtraClaims)).
 		Methods(http.MethodGet, http.MethodOptions)
 
 	if !settings.DisablePeopleAPI {
-		router.Handle(basePath+"/api/{version}/people/{user_id}", server.PeopleAPIHandler(peopleStore, settings.PeopleAPICustomVersions)).
+		router.Handle(basePath+"/api/{version}/people/{user_id}", server.PeopleAPIHandler(peopleStore, settings.PeopleAPICustomVersions, settings.PeopleAPIRequireAuthN, tokenVarifier)).
 			Methods(http.MethodGet, http.MethodOptions)
 	}
 
