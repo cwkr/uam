@@ -47,7 +47,7 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"public_key":     string(pubBytes),
 		"state":          fmt.Sprint(rand.Int()),
 		"nonce":          stringutil.RandomBytesString(10),
-		"scope":          i.scope,
+		"scopes":         strings.Fields(i.scope),
 		"clients":        i.settings.Clients,
 		"code_verifier":  codeVerifier,
 		"code_challenge": pkce.CodeChallange(codeVerifier),

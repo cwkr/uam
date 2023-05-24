@@ -27,8 +27,11 @@
                 document.querySelectorAll("#code_challenge, #code_challenge_method, #nonce, #scope").forEach(input => {
                     input.disabled = false;
                 });
+                document.querySelectorAll("#client_secret").forEach(input => {
+                    input.disabled = true;
+                });
             } else if (responseType === "token") {
-                document.querySelectorAll("#code_challenge, #code_challenge_method, #nonce").forEach(input => {
+                document.querySelectorAll("#code_challenge, #code_challenge_method, #nonce, #client_secret").forEach(input => {
                     input.disabled = true;
                 });
                 document.querySelectorAll("#scope").forEach(input => {
@@ -38,16 +41,22 @@
                 document.querySelectorAll("#code_challenge, #code_challenge_method, #nonce, #scope").forEach(input => {
                     input.disabled = true;
                 });
+                document.querySelectorAll("#client_secret").forEach(input => {
+                    input.disabled = false;
+                });
             }
         }
 
         function onFormSubmit() {
+            const checkedScopes = document.querySelectorAll('input[id^="scope_"]:checked');
+            document.getElementById("scope").value = Array.from(checkedScopes).map(input => input.value).join(' ');
+
             const responseType = document.getElementById("response_type").value;
             if (responseType === 'client_credentials') {
                 const postParams = new URLSearchParams({
                     "grant_type": "client_credentials",
                     "client_id": document.getElementById("client_id").value,
-                    "client_secret": prompt("Client secret (required)") || ''
+                    "client_secret": document.getElementById("client_secret").value
                 });
                 fetch("token", {method: "POST", body: postParams})
                     .then(async resp => {
@@ -100,6 +109,7 @@
     <input type="hidden" id="code_verifier" name="code_verifier" value="{{ .code_verifier }}" disabled>
     <input type="hidden" id="code_challenge" name="code_challenge" value="{{ .code_challenge }}" disabled>
     <input type="hidden" id="code_challenge_method" name="code_challenge_method" value="S256" disabled>
+    <input type="hidden" id="scope" name="scope">
     <label for="response_type">Flow</label>
     <select id="response_type" name="response_type" onchange="onResponseTypeChange(this.value);">
         <option value="token">Implicit (access token only)</option>
@@ -112,13 +122,17 @@
             <option value="{{ . }}">{{ . }}</option>
         {{- end }}
     </select>
-    <label for="scope">Scope</label>
-    <select id="scope" name="scope">
-        <option value="">---</option>
-        <option value="offline_access">offline_access</option>
-        <option value="openid profile email">openid profile email</option>
-        <option value="{{ .scope }}">{{ .scope }}</option>
-    </select>
+    <label for="client_secret">Client Secret</label>
+    <input type="password" id="client_secret" required disabled>
+    <div>Scope</div>
+    <div style="display: flex; flex-direction: row; margin: 4px 0;">
+    {{- range .scopes }}
+    <div style="margin-right: .5em">
+        <input type="checkbox" id="scope_{{ . }}" value="{{ . }}">
+        <label for="scope_{{ . }}">{{ . }}</label>
+    </div>
+    {{- end }}
+    </div>
     <button type="submit">Get token</button>
 </form>
 <div id="access_token_panel" style="display: none;">
@@ -154,7 +168,12 @@
 
     const rememberedScope = sessionStorage.getItem("scope");
     if (rememberedScope) {
+        const rememberedScopes = rememberedScope.split(/\s+/g);
         document.getElementById("scope").value = rememberedScope;
+        document.querySelectorAll('input[id^="scope_"]').forEach(input => {
+            console.log(input);
+            input.checked = rememberedScopes.includes(input.value);
+        });
     }
 
     let urlParams = new URLSearchParams();
