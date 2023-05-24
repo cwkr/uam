@@ -20,14 +20,16 @@ const (
 	ClaimNonce           = "nonce"
 )
 
-func AddExtraClaims(claims map[string]any, extraClaims map[string]string, user User) {
+func AddExtraClaims(claims map[string]any, extraClaims map[string]string, user User, clientID string) {
 	for key, tmpl := range extraClaims {
-		if value := strings.TrimSpace(os.Expand(tmpl, func(name string) string {
+		if strings.EqualFold(strings.TrimSpace(tmpl), "$groups") {
+			claims[key] = user.Groups
+		} else if value := strings.TrimSpace(os.Expand(tmpl, func(name string) string {
 			switch strings.ToLower(name) {
-			case "user_id":
-				return user.UserID
 			case "birthdate":
 				return user.Birthdate
+			case "client_id":
+				return clientID
 			case "department":
 				return user.Department
 			case "email":
@@ -36,16 +38,22 @@ func AddExtraClaims(claims map[string]any, extraClaims map[string]string, user U
 				return user.FamilyName
 			case "given_name":
 				return user.GivenName
-			case "groups_semicolon":
-				return strings.Join(user.Groups, ";")
-			case "phone_number":
-				return user.PhoneNumber
-			case "street_address":
-				return user.StreetAddress
 			case "locality":
 				return user.Locality
+			case "phone_number":
+				return user.PhoneNumber
 			case "postal_code":
 				return user.PostalCode
+			case "groups_space_delimited":
+				return strings.Join(user.Groups, " ")
+			case "groups_comma_delimited":
+				return strings.Join(user.Groups, ",")
+			case "groups_semicolon_delimited":
+				return strings.Join(user.Groups, ";")
+			case "street_address":
+				return user.StreetAddress
+			case "user_id":
+				return user.UserID
 			}
 			return ""
 		})); value != "" {

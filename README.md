@@ -1,7 +1,8 @@
 # Auth Server
 
 This is a simple OAuth2 authorization server implementation supporting *Implicit*,
-*Authorization Code* (with and without *PKCE*) and *Refresh Token* grant types.
+*Authorization Code* (with and without *PKCE*), *Refresh Token*, *Password* and
+*Client Credentials* grant types.
 
 It is possible to use a PostgreSQL database or LDAP as people store.
 
@@ -24,7 +25,7 @@ It is possible to use a PostgreSQL database or LDAP as people store.
     }
   },
   "key": "mykey.pem",
-  // extra RSA public key to include in jwks
+  // extra public keys to include in jwks
   "additional_keys": null,
   "clients": {
     "app": {
@@ -35,7 +36,7 @@ It is possible to use a PostgreSQL database or LDAP as people store.
     "prn": "$user_id",
     "email": "$email",
     "givenName": "$given_name",
-    "groups": "$groups_semicolon",
+    "groups": "$groups_semicolon_delimited",
     "sn": "$family_name",
     "user_id": "$user_id"
   },
@@ -72,7 +73,7 @@ It is possible to use a PostgreSQL database or LDAP as people store.
     "prn": "$user_id",
     "email": "$email",
     "givenName": "$given_name",
-    "groups": "$groups_semicolon",
+    "groups": "$groups_semicolon_delimited",
     "sn": "$family_name",
     "user_id": "$user_id"
   },

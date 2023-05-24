@@ -94,7 +94,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch responseType {
 	case ResponseTypeToken:
 		timing.Start("jwtgen")
-		var x, err = a.tokenService.GenerateAccessToken(user, clientID, IntersectScope(a.scope, scope))
+		var x, err = a.tokenService.GenerateAccessToken(user, user.UserID, clientID, IntersectScope(a.scope, scope))
 		if err != nil {
 			htmlutil.Error(w, a.basePath, err.Error(), http.StatusInternalServerError)
 			return

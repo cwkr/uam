@@ -111,7 +111,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Stop("store")
 		var user = User{Person: *person, UserID: userID}
 		timing.Start("jwtgen")
-		accessToken, _ = t.tokenService.GenerateAccessToken(user, clientID, scope)
+		accessToken, _ = t.tokenService.GenerateAccessToken(user, userID, clientID, scope)
 		timing.Stop("jwtgen")
 	case GrantTypeAuthorizationCode:
 		var userID, scope, challenge, nonce, valid = t.tokenService.VerifyAuthCode(code)
@@ -147,7 +147,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Stop("store")
 		var user = User{Person: *person, UserID: userID}
 		timing.Start("jwtgen")
-		accessToken, _ = t.tokenService.GenerateAccessToken(user, clientID, scope)
+		accessToken, _ = t.tokenService.GenerateAccessToken(user, userID, clientID, scope)
 		if strings.Contains(scope, "offline_access") {
 			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope, nonce)
 		}
@@ -175,7 +175,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Stop("store")
 		var user = User{Person: *person, UserID: userID}
 		timing.Start("jwtgen")
-		accessToken, _ = t.tokenService.GenerateAccessToken(user, clientID, scope)
+		accessToken, _ = t.tokenService.GenerateAccessToken(user, userID, clientID, scope)
 		if t.refreshTokenRotation && strings.Contains(scope, "offline_access") {
 			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope, nonce)
 		} else {
@@ -188,7 +188,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Stop("jwtgen")
 	case GrantTypeClientCredentials:
 		timing.Start("jwtgen")
-		accessToken, _ = t.tokenService.GenerateAccessToken(User{UserID: clientID}, clientID, "")
+		accessToken, _ = t.tokenService.GenerateAccessToken(User{}, clientID, clientID, "")
 		timing.Stop("jwtgen")
 	default:
 		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code', 'client_credentials', 'password' and 'refresh_token' are supported", http.StatusBadRequest)

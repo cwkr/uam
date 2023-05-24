@@ -52,7 +52,7 @@ func (p *peopleAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var err error
 		if customVersion, found := p.customVersions[pathVars["version"]]; found {
 			var claims = make(map[string]any)
-			oauth2.AddExtraClaims(claims, customVersion, oauth2.User{UserID: userID, Person: *person})
+			oauth2.AddExtraClaims(claims, customVersion, oauth2.User{UserID: userID, Person: *person}, "")
 			bytes, err = json.Marshal(claims)
 		} else if pathVars["version"] == "v1" {
 			bytes, err = json.Marshal(person)

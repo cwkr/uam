@@ -6,7 +6,7 @@ type Client struct {
 	RedirectURIPattern string `json:"redirect_uri_pattern,omitempty"`
 	Secret             string `json:"secret,omitempty"`
 	SessionName        string `json:"session_name,omitempty"`
-	DisableImplicit    bool   `json:"disable_implicit"`
+	DisableImplicit    bool   `json:"disable_implicit,omitempty"`
 }
 
 type Clients map[string]Client
