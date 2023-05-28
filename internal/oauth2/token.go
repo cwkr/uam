@@ -20,6 +20,7 @@ type tokenHandler struct {
 	tokenService         TokenCreator
 	peopleStore          people.Store
 	clients              Clients
+	scope                string
 	refreshTokenRotation bool
 }
 
@@ -111,7 +112,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Stop("store")
 		var user = User{Person: *person, UserID: userID}
 		timing.Start("jwtgen")
-		accessToken, _ = t.tokenService.GenerateAccessToken(user, userID, clientID, scope)
+		accessToken, _ = t.tokenService.GenerateAccessToken(user, userID, clientID, IntersectScope(t.scope, scope))
 		timing.Stop("jwtgen")
 	case GrantTypeAuthorizationCode:
 		var userID, scope, challenge, nonce, valid = t.tokenService.VerifyAuthCode(code)
@@ -187,8 +188,10 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		timing.Stop("jwtgen")
 	case GrantTypeClientCredentials:
+		var scope = strings.TrimSpace(r.PostFormValue("scope"))
+		log.Printf("scope=%q", scope)
 		timing.Start("jwtgen")
-		accessToken, _ = t.tokenService.GenerateAccessToken(User{}, clientID, clientID, "")
+		accessToken, _ = t.tokenService.GenerateAccessToken(User{}, clientID, clientID, IntersectScope(t.scope, scope))
 		timing.Stop("jwtgen")
 	default:
 		Error(w, ErrorUnsupportedGrantType, "only grant types 'authorization_code', 'client_credentials', 'password' and 'refresh_token' are supported", http.StatusBadRequest)
@@ -213,11 +216,12 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
-func TokenHandler(tokenService TokenCreator, peopleStore people.Store, clients Clients, refreshTokenRotation bool) http.Handler {
+func TokenHandler(tokenService TokenCreator, peopleStore people.Store, clients Clients, scope string, refreshTokenRotation bool) http.Handler {
 	return &tokenHandler{
 		tokenService:         tokenService,
-		clients:              clients,
 		peopleStore:          peopleStore,
+		clients:              clients,
+		scope:                scope,
 		refreshTokenRotation: refreshTokenRotation,
 	}
 }

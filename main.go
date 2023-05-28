@@ -137,6 +137,10 @@ func main() {
 		Methods(http.MethodGet)
 	router.Handle(basePath+"/style.css", server.StyleHandler()).
 		Methods(http.MethodGet)
+	router.Handle(basePath+"/scripts/jwt.js", server.JwtScriptHandler()).
+		Methods(http.MethodGet)
+	router.Handle(basePath+"/scripts/main.js", server.MainScriptHandler()).
+		Methods(http.MethodGet)
 	router.Handle("/favicon.ico", server.FaviconHandler()).
 		Methods(http.MethodGet)
 	router.Handle(basePath+"/favicon-16x16.png", server.Favicon16x16Handler()).
@@ -151,7 +155,7 @@ func main() {
 
 	router.Handle(basePath+"/jwks", oauth2.JwksHandler(settings.AllKeys())).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle(basePath+"/token", oauth2.TokenHandler(tokenCreator, peopleStore, clients, settings.EnableRefreshTokenRotation)).
+	router.Handle(basePath+"/token", oauth2.TokenHandler(tokenCreator, peopleStore, clients, scope, settings.EnableRefreshTokenRotation)).
 		Methods(http.MethodOptions, http.MethodPost)
 	router.Handle(basePath+"/authorize", oauth2.AuthorizeHandler(basePath, tokenCreator, peopleStore, clients, scope, settings.SessionName)).
 		Methods(http.MethodGet)
