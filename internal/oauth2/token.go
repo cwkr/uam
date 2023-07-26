@@ -115,14 +115,14 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		accessToken, _ = t.tokenService.GenerateAccessToken(user, userID, clientID, IntersectScope(t.scope, scope))
 		timing.Stop("jwtgen")
 	case GrantTypeAuthorizationCode:
-		var userID, scope, challenge, nonce, valid = t.tokenService.VerifyAuthCode(code)
-		if !valid {
-			Error(w, ErrorInvalidGrant, "invalid auth code", http.StatusBadRequest)
+		var codeClaims, authCodeErr = t.tokenService.Verify(code, TokenTypeCode)
+		if authCodeErr != nil {
+			Error(w, ErrorInvalidGrant, authCodeErr.Error(), http.StatusBadRequest)
 			return
 		}
 
 		// verify parameters and pkce
-		if challenge == "" {
+		if codeClaims.Challenge == "" {
 			if stringutil.IsAnyEmpty(clientID, code) {
 				Error(w, ErrorInvalidRequest, "client_id and code parameters are required", http.StatusBadRequest)
 				return
@@ -133,28 +133,28 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if !pkce.Verify(challenge, codeVerifier) {
+			if !pkce.Verify(codeClaims.Challenge, codeVerifier) {
 				Error(w, ErrorInvalidGrant, "invalid challenge", http.StatusBadRequest)
 				return
 			}
 		}
 
 		timing.Start("store")
-		var person, err = t.peopleStore.Lookup(userID)
+		var person, err = t.peopleStore.Lookup(codeClaims.UserID)
 		if err != nil {
 			Error(w, ErrorInternal, "person not found", http.StatusInternalServerError)
 			return
 		}
 		timing.Stop("store")
-		var user = User{Person: *person, UserID: userID}
+		var user = User{Person: *person, UserID: codeClaims.UserID}
 		timing.Start("jwtgen")
-		accessToken, _ = t.tokenService.GenerateAccessToken(user, userID, clientID, scope)
-		if strings.Contains(scope, "offline_access") {
-			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope, nonce)
+		accessToken, _ = t.tokenService.GenerateAccessToken(user, codeClaims.UserID, clientID, codeClaims.Scope)
+		if strings.Contains(codeClaims.Scope, "offline_access") {
+			refreshToken, _ = t.tokenService.GenerateRefreshToken(codeClaims.UserID, clientID, codeClaims.Scope, codeClaims.Nonce)
 		}
-		if strings.Contains(scope, "openid") {
+		if strings.Contains(codeClaims.Scope, "openid") {
 			var hash = sha256.Sum256([]byte(accessToken))
-			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]), nonce)
+			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, codeClaims.Scope, base64.RawURLEncoding.EncodeToString(hash[:16]), codeClaims.Nonce)
 		}
 		timing.Stop("jwtgen")
 	case GrantTypeRefreshToken:
@@ -162,29 +162,29 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error(w, ErrorInvalidRequest, "client_id and refresh_token parameters are required", http.StatusBadRequest)
 			return
 		}
-		var userID, scope, nonce, valid = t.tokenService.VerifyRefreshToken(refreshToken)
-		if !valid {
-			Error(w, ErrorInvalidGrant, "invalid refresh_token", http.StatusBadRequest)
+		var refreshClaims, refreshTokenErr = t.tokenService.Verify(refreshToken, TokenTypeRefreshToken)
+		if refreshTokenErr != nil {
+			Error(w, ErrorInvalidGrant, refreshTokenErr.Error(), http.StatusBadRequest)
 			return
 		}
 		timing.Start("store")
-		var person, err = t.peopleStore.Lookup(userID)
+		var person, err = t.peopleStore.Lookup(refreshClaims.UserID)
 		if err != nil {
 			Error(w, ErrorInternal, "person not found", http.StatusInternalServerError)
 			return
 		}
 		timing.Stop("store")
-		var user = User{Person: *person, UserID: userID}
+		var user = User{Person: *person, UserID: refreshClaims.UserID}
 		timing.Start("jwtgen")
-		accessToken, _ = t.tokenService.GenerateAccessToken(user, userID, clientID, scope)
-		if t.refreshTokenRotation && strings.Contains(scope, "offline_access") {
-			refreshToken, _ = t.tokenService.GenerateRefreshToken(userID, clientID, scope, nonce)
+		accessToken, _ = t.tokenService.GenerateAccessToken(user, refreshClaims.UserID, clientID, refreshClaims.Scope)
+		if t.refreshTokenRotation && strings.Contains(refreshClaims.Scope, "offline_access") {
+			refreshToken, _ = t.tokenService.GenerateRefreshToken(refreshClaims.UserID, clientID, refreshClaims.Scope, refreshClaims.Nonce)
 		} else {
 			refreshToken = ""
 		}
-		if strings.Contains(scope, "openid") {
+		if strings.Contains(refreshClaims.Scope, "openid") {
 			var hash = sha256.Sum256([]byte(accessToken))
-			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, scope, base64.RawURLEncoding.EncodeToString(hash[:16]), nonce)
+			idToken, _ = t.tokenService.GenerateIDToken(user, clientID, refreshClaims.Scope, base64.RawURLEncoding.EncodeToString(hash[:16]), refreshClaims.Nonce)
 		}
 		timing.Stop("jwtgen")
 	case GrantTypeClientCredentials:
