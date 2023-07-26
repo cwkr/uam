@@ -209,7 +209,7 @@ func (p ldapStore) Authenticate(userID, password string) (string, error) {
 			if err = conn.Bind(entry.DN, password); err == nil {
 				return entry.GetEqualFoldAttributeValue(p.userIDAttr), nil
 			} else {
-				log.Printf("!!! Authenticate failed: %v", err)
+				log.Printf("!!! authentication using ldap bind failed: %v", err)
 			}
 		} else {
 			log.Printf("!!! Person not found: %s", userID)

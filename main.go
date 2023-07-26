@@ -42,19 +42,16 @@ func main() {
 	settings = server.NewDefaultSettings()
 
 	log.Printf("Loading settings from %s", settingsFilename)
-	configBytes, err := os.ReadFile(settingsFilename)
-	if err == nil {
-		err = json.Unmarshal(jsonc.ToJSON(configBytes), settings)
-		if err != nil {
-			panic(err)
+	if bytes, err := os.ReadFile(settingsFilename); err == nil {
+		if err := json.Unmarshal(jsonc.ToJSON(bytes), settings); err != nil {
+			log.Fatal(err)
 		}
 	} else {
-		log.Printf("%v", err)
+		log.Print(err)
 	}
 
-	err = settings.LoadKeys(filepath.Dir(settingsFilename), saveSettings)
-	if err != nil {
-		panic(err)
+	if err := settings.LoadKeys(filepath.Dir(settingsFilename), saveSettings); err != nil {
+		log.Fatal(err)
 	}
 
 	if settings.LoginTemplate != "" {
@@ -62,7 +59,7 @@ func main() {
 		log.Printf("Loading login form template from %s", filename)
 		err = server.LoadLoginTemplate(filename)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 	}
 
@@ -70,7 +67,7 @@ func main() {
 		log.Printf("Saving settings to %s", settingsFilename)
 		configJson, _ := json.MarshalIndent(settings, "", "  ")
 		if err := os.WriteFile(settingsFilename, configJson, 0644); err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 		os.Exit(0)
 	}
@@ -89,7 +86,7 @@ func main() {
 		settings.IDTokenExtraClaims,
 	)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	tokenVarifier = oauth2.NewTokenVerifier(settings.AllKeys())
@@ -108,7 +105,7 @@ func main() {
 			sessionStore.Options.Secure = true
 		}
 	} else {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	var clients, users = maputil.LowerKeys(settings.Clients), maputil.LowerKeys(settings.Users)
@@ -117,14 +114,14 @@ func main() {
 	if settings.PeopleStore != nil {
 		if strings.HasPrefix(settings.PeopleStore.URI, "postgresql:") {
 			if peopleStore, err = people.NewSqlStore(sessionStore, users, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
-				panic(err)
+				log.Fatal(err)
 			}
 		} else if strings.HasPrefix(settings.PeopleStore.URI, "ldap:") || strings.HasPrefix(settings.PeopleStore.URI, "ldaps:") {
 			if peopleStore, err = people.NewLdapStore(sessionStore, users, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
-				panic(err)
+				log.Fatal(err)
 			}
 		} else {
-			panic(errors.New("unsupported or empty store uri: " + settings.PeopleStore.URI))
+			log.Fatal(errors.New("unsupported or empty store uri: " + settings.PeopleStore.URI))
 		}
 	} else {
 		peopleStore = people.NewEmbeddedStore(sessionStore, users, int64(settings.SessionTTL))
@@ -172,6 +169,6 @@ func main() {
 	log.Printf("Listening on http://localhost:%d%s/", settings.Port, basePath)
 	err = http.ListenAndServe(fmt.Sprintf(":%d", settings.Port), router)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 }

@@ -55,19 +55,21 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		grantType, clientID, strings.Repeat("*", utf8.RuneCountInString(clientSecret)), code, codeVerifier, refreshToken)
 
 	if client, clientExists := t.clients[strings.ToLower(clientID)]; clientExists {
-		if grantType == GrantTypeClientCredentials && client.Secret == "" {
-			Error(w, ErrorUnauthorizedClient, "client has no secret", http.StatusBadRequest)
+		if (grantType == GrantTypeClientCredentials || grantType == GrantTypePassword) && client.Secret == "" {
+			Error(w, ErrorUnauthorizedClient, "client has no secret", http.StatusUnauthorized)
 			return
 		}
-		if clientSecret != "" || grantType == "client_credentials" {
+		if clientSecret != "" {
 			timing.Start("secret")
 			if strings.HasPrefix(client.Secret, "$2") {
 				if err := bcrypt.CompareHashAndPassword([]byte(client.Secret), []byte(clientSecret)); err != nil {
-					Error(w, ErrorInvalidClient, "client authentication failed: "+err.Error(), http.StatusUnauthorized)
+					log.Printf("!!! secret comparison failed: %v", err)
+					Error(w, ErrorInvalidClient, "client authentication failed", http.StatusUnauthorized)
 					return
 				}
 			} else {
 				if clientSecret != client.Secret {
+					log.Print("!!! secret comparison failed")
 					Error(w, ErrorInvalidClient, "client authentication failed", http.StatusUnauthorized)
 					return
 				}
@@ -90,8 +92,8 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// debug output of parameters
 		log.Printf("username=%q password=%q scope=%q", userID, strings.Repeat("*", utf8.RuneCountInString(password)), scope)
 
-		if stringutil.IsAnyEmpty(clientID, userID, password) {
-			Error(w, ErrorInvalidRequest, "client_id, username and password parameters are required", http.StatusBadRequest)
+		if stringutil.IsAnyEmpty(clientID, clientSecret, userID, password) {
+			Error(w, ErrorInvalidRequest, "client_id, client_secret, username and password parameters are required", http.StatusBadRequest)
 			return
 		}
 
@@ -190,6 +192,12 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case GrantTypeClientCredentials:
 		var scope = strings.TrimSpace(r.PostFormValue("scope"))
 		log.Printf("scope=%q", scope)
+
+		if stringutil.IsAnyEmpty(clientID, clientSecret) {
+			Error(w, ErrorInvalidRequest, "client_id and client_secret parameters are required", http.StatusBadRequest)
+			return
+		}
+
 		timing.Start("jwtgen")
 		accessToken, _ = t.tokenService.GenerateAccessToken(User{}, clientID, clientID, IntersectScope(t.scope, scope))
 		timing.Stop("jwtgen")

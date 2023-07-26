@@ -89,7 +89,7 @@ func (p sqlStore) Authenticate(userID, password string) (string, error) {
 	var passwordHash string
 	if err := row.Scan(&realUserID, &passwordHash); err == nil {
 		if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)); err != nil {
-			log.Printf("!!! Authenticate failed: %v", err)
+			log.Printf("!!! password comparison failed: %v", err)
 		} else {
 			return realUserID, nil
 		}

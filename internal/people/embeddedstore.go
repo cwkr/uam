@@ -34,7 +34,7 @@ func (e embeddedStore) Authenticate(userID, password string) (string, error) {
 
 	if foundUser {
 		if err := bcrypt.CompareHashAndPassword([]byte(authenticPerson.PasswordHash), []byte(password)); err != nil {
-			log.Printf("Authenticate failed: %v", err)
+			log.Printf("!!! password comparison failed: %v", err)
 		} else {
 			return lowercaseUserID, nil
 		}
