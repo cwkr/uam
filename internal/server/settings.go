@@ -6,6 +6,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"github.com/cwkr/auth-server/internal/oauth2"
+	"github.com/cwkr/auth-server/internal/oauth2/clients"
 	"github.com/cwkr/auth-server/internal/people"
 	"github.com/cwkr/auth-server/internal/stringutil"
 	"os"
@@ -14,30 +15,29 @@ import (
 )
 
 type Settings struct {
-	Issuer                     string                            `json:"issuer"`
-	Port                       int                               `json:"port"`
-	Users                      map[string]people.AuthenticPerson `json:"users,omitempty"`
-	Key                        string                            `json:"key"`
-	AdditionalKeys             []string                          `json:"additional_keys,omitempty"`
-	Clients                    oauth2.Clients                    `json:"clients"`
-	ExtraScope                 string                            `json:"extra_scope,omitempty"`
-	AccessTokenExtraClaims     map[string]string                 `json:"access_token_extra_claims"`
-	AccessTokenTTL             int                               `json:"access_token_ttl"`
-	RefreshTokenTTL            int                               `json:"refresh_token_ttl"`
-	IDTokenTTL                 int                               `json:"id_token_ttl"`
-	IDTokenExtraClaims         map[string]string                 `json:"id_token_extra_claims"`
-	SessionSecret              string                            `json:"session_secret"`
-	SessionName                string                            `json:"session_name"`
-	SessionTTL                 int                               `json:"session_ttl"`
-	EnableRefreshTokenRotation bool                              `json:"enable_refresh_token_rotation"`
-	PeopleStore                *people.StoreSettings             `json:"people_store,omitempty"`
-	DisablePeopleAPI           bool                              `json:"disable_people_api,omitempty"`
-	PeopleAPICustomVersions    map[string]map[string]string      `json:"people_api_custom_versions,omitempty"`
-	PeopleAPIRequireAuthN      bool                              `json:"people_api_require_authn"`
-	LoginTemplate              string                            `json:"login_template,omitempty"`
-	rsaSigningKey              *rsa.PrivateKey
-	rsaSigningKeyID            string
-	additionalPublicKeys       map[string]any
+	Issuer                  string                            `json:"issuer"`
+	Port                    int                               `json:"port"`
+	Users                   map[string]people.AuthenticPerson `json:"users,omitempty"`
+	Key                     string                            `json:"key"`
+	AdditionalKeys          []string                          `json:"additional_keys,omitempty"`
+	Clients                 map[string]clients.Client         `json:"clients,omitempty"`
+	ExtraScope              string                            `json:"extra_scope,omitempty"`
+	AccessTokenExtraClaims  map[string]string                 `json:"access_token_extra_claims,omitempty"`
+	AccessTokenTTL          int                               `json:"access_token_ttl"`
+	RefreshTokenTTL         int                               `json:"refresh_token_ttl"`
+	IDTokenTTL              int                               `json:"id_token_ttl"`
+	IDTokenExtraClaims      map[string]string                 `json:"id_token_extra_claims,omitempty"`
+	SessionSecret           string                            `json:"session_secret"`
+	SessionName             string                            `json:"session_name"`
+	SessionTTL              int                               `json:"session_ttl"`
+	PeopleStore             *people.StoreSettings             `json:"people_store,omitempty"`
+	DisablePeopleAPI        bool                              `json:"disable_people_api,omitempty"`
+	PeopleAPICustomVersions map[string]map[string]string      `json:"people_api_custom_versions,omitempty"`
+	PeopleAPIRequireAuthN   bool                              `json:"people_api_require_authn,omitempty"`
+	LoginTemplate           string                            `json:"login_template,omitempty"`
+	rsaSigningKey           *rsa.PrivateKey
+	rsaSigningKeyID         string
+	additionalPublicKeys    map[string]any
 }
 
 func NewDefaultSettings() *Settings {

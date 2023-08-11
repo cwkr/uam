@@ -4,7 +4,7 @@ import (
 	_ "embed"
 	"github.com/cwkr/auth-server/internal/htmlutil"
 	"github.com/cwkr/auth-server/internal/httputil"
-	"github.com/cwkr/auth-server/internal/oauth2"
+	"github.com/cwkr/auth-server/internal/oauth2/clients"
 	"github.com/cwkr/auth-server/internal/people"
 	"github.com/cwkr/auth-server/internal/stringutil"
 	"html/template"
@@ -30,7 +30,7 @@ func LoadLoginTemplate(filename string) error {
 type loginHandler struct {
 	basePath    string
 	peopleStore people.Store
-	clients     oauth2.Clients
+	clientStore clients.Store
 	issuer      string
 	sessionName string
 	tpl         *template.Template
@@ -58,7 +58,7 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if stringutil.IsAnyEmpty(userID, password) {
 			message = "username and password must not be empty"
 		} else {
-			if client, clientExists := j.clients[clientID]; clientExists {
+			if client, err := j.clientStore.Lookup(clientID); err == nil {
 				if client.SessionName != "" {
 					sessionName = client.SessionName
 				}
@@ -98,11 +98,11 @@ func (j *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func LoginHandler(basePath string, peopleStore people.Store, clients oauth2.Clients, issuer, sessionName string) http.Handler {
+func LoginHandler(basePath string, peopleStore people.Store, clientStore clients.Store, issuer, sessionName string) http.Handler {
 	return &loginHandler{
 		basePath:    basePath,
 		peopleStore: peopleStore,
-		clients:     clients,
+		clientStore: clientStore,
 		issuer:      issuer,
 		sessionName: sessionName,
 		tpl:         template.Must(template.New("login").Parse(loginTpl)),

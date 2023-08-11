@@ -7,7 +7,7 @@ import (
 
 const (
 	ClaimClientID        = "client_id"
-	ClaimExpirationTime  = "exp"
+	ClaimExpiryTime      = "exp"
 	ClaimIssuer          = "iss"
 	ClaimIssuedAtTime    = "iat"
 	ClaimNotBeforeTime   = "nbf"
@@ -18,6 +18,7 @@ const (
 	ClaimAudience        = "aud"
 	ClaimAccessTokenHash = "at_hash"
 	ClaimNonce           = "nonce"
+	ClaimTokenID         = "jti"
 )
 
 func AddExtraClaims(claims map[string]any, extraClaims map[string]string, user User, clientID string) {

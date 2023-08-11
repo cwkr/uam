@@ -14,11 +14,7 @@
 <form method="get" action="{{ .base_path }}/logout">
     <input type="hidden" name="post_logout_redirect_uri" value="{{ .issuer }}/">
     <label for="client_id_logout">Client</label>
-    <select name="client_id" id="client_id_logout">
-        {{- range $key, $value := .clients }}
-        <option value="{{ $key }}">{{ $key }}</option>
-        {{- end }}
-    </select>
+    <input type="text" name="client_id" id="client_id_logout" required>
     <button type="submit">Logout</button>
 </form>
 <h2>Token Request</h2>
@@ -38,11 +34,7 @@
         <option value="password">Password (access token only)</option>
     </select>
     <label for="client_id">Client</label>
-    <select id="client_id" name="client_id">
-        {{- range .clients.ClientsMatchingRedirectURI (printf "%s/" .issuer) }}
-        <option value="{{ . }}">{{ . }}</option>
-        {{- end }}
-    </select>
+    <input type="text" id="client_id" name="client_id" required>
     <label for="client_secret">Client Secret</label>
     <input type="password" id="client_secret" required disabled>
     <label for="username">Username</label>

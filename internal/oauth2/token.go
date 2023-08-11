@@ -4,12 +4,14 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/cwkr/auth-server/internal/httputil"
+	"github.com/cwkr/auth-server/internal/oauth2/clients"
 	"github.com/cwkr/auth-server/internal/oauth2/pkce"
+	"github.com/cwkr/auth-server/internal/oauth2/trl"
 	"github.com/cwkr/auth-server/internal/people"
 	"github.com/cwkr/auth-server/internal/stringutil"
-	"golang.org/x/crypto/bcrypt"
 	"log"
 	"net/http"
 	"strings"
@@ -17,11 +19,11 @@ import (
 )
 
 type tokenHandler struct {
-	tokenService         TokenCreator
-	peopleStore          people.Store
-	clients              Clients
-	scope                string
-	refreshTokenRotation bool
+	tokenService TokenCreator
+	peopleStore  people.Store
+	clientStore  clients.Store
+	trlStore     trl.Store
+	scope        string
 }
 
 func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -54,31 +56,21 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("grant_type=%q client_id=%q client_secret=%q code=%q code_verifier=%q refresh_token=%q",
 		grantType, clientID, strings.Repeat("*", utf8.RuneCountInString(clientSecret)), code, codeVerifier, refreshToken)
 
-	if client, clientExists := t.clients[strings.ToLower(clientID)]; clientExists {
-		if (grantType == GrantTypeClientCredentials || grantType == GrantTypePassword) && client.Secret == "" {
-			Error(w, ErrorUnauthorizedClient, "client has no secret", http.StatusUnauthorized)
+	var client clients.Client
+	if clientSecret != "" || grantType == GrantTypeClientCredentials || grantType == GrantTypePassword {
+		if c, err := t.clientStore.Authenticate(clientID, clientSecret); err != nil {
+			Error(w, ErrorUnauthorizedClient, err.Error(), http.StatusUnauthorized)
 			return
-		}
-		if clientSecret != "" {
-			timing.Start("secret")
-			if strings.HasPrefix(client.Secret, "$2") {
-				if err := bcrypt.CompareHashAndPassword([]byte(client.Secret), []byte(clientSecret)); err != nil {
-					log.Printf("!!! secret comparison failed: %v", err)
-					Error(w, ErrorInvalidClient, "client authentication failed", http.StatusUnauthorized)
-					return
-				}
-			} else {
-				if clientSecret != client.Secret {
-					log.Print("!!! secret comparison failed")
-					Error(w, ErrorInvalidClient, "client authentication failed", http.StatusUnauthorized)
-					return
-				}
-			}
-			timing.Stop("secret")
+		} else {
+			client = *c
 		}
 	} else {
-		Error(w, ErrorInvalidClient, "client not found", http.StatusUnauthorized)
-		return
+		if c, err := t.clientStore.Lookup(clientID); err != nil {
+			Error(w, ErrorUnauthorizedClient, err.Error(), http.StatusUnauthorized)
+			return
+		} else {
+			client = *c
+		}
 	}
 
 	switch grantType {
@@ -119,6 +111,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case GrantTypeAuthorizationCode:
 		var codeClaims, authCodeErr = t.tokenService.Verify(code, TokenTypeCode)
 		if authCodeErr != nil {
+			log.Printf("!!! %s", authCodeErr)
 			Error(w, ErrorInvalidGrant, authCodeErr.Error(), http.StatusBadRequest)
 			return
 		}
@@ -165,7 +158,14 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var refreshClaims, refreshTokenErr = t.tokenService.Verify(refreshToken, TokenTypeRefreshToken)
+		if refreshTokenErr == nil {
+			revokedToken, _ := t.trlStore.Lookup(refreshClaims.TokenID)
+			if revokedToken != nil {
+				refreshTokenErr = errors.New("refresh token has been revoked")
+			}
+		}
 		if refreshTokenErr != nil {
+			log.Printf("!!! %s", refreshTokenErr)
 			Error(w, ErrorInvalidGrant, refreshTokenErr.Error(), http.StatusBadRequest)
 			return
 		}
@@ -179,7 +179,8 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var user = User{Person: *person, UserID: refreshClaims.UserID}
 		timing.Start("jwtgen")
 		accessToken, _ = t.tokenService.GenerateAccessToken(user, refreshClaims.UserID, clientID, refreshClaims.Scope)
-		if t.refreshTokenRotation && strings.Contains(refreshClaims.Scope, "offline_access") {
+		if client.EnableRefreshTokenRotation && strings.Contains(refreshClaims.Scope, "offline_access") {
+			_ = t.trlStore.Put(refreshClaims.TokenID, TokenTypeRefreshToken, refreshClaims.Expiry.Time())
 			refreshToken, _ = t.tokenService.GenerateRefreshToken(refreshClaims.UserID, clientID, refreshClaims.Scope, refreshClaims.Nonce)
 		} else {
 			refreshToken = ""
@@ -224,12 +225,12 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
-func TokenHandler(tokenService TokenCreator, peopleStore people.Store, clients Clients, scope string, refreshTokenRotation bool) http.Handler {
+func TokenHandler(tokenService TokenCreator, peopleStore people.Store, clientStore clients.Store, trlStore trl.Store, scope string) http.Handler {
 	return &tokenHandler{
-		tokenService:         tokenService,
-		peopleStore:          peopleStore,
-		clients:              clients,
-		scope:                scope,
-		refreshTokenRotation: refreshTokenRotation,
+		tokenService: tokenService,
+		peopleStore:  peopleStore,
+		clientStore:  clientStore,
+		trlStore:     trlStore,
+		scope:        scope,
 	}
 }

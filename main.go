@@ -8,11 +8,14 @@ import (
 	"github.com/cwkr/auth-server/internal/htmlutil"
 	"github.com/cwkr/auth-server/internal/maputil"
 	"github.com/cwkr/auth-server/internal/oauth2"
+	"github.com/cwkr/auth-server/internal/oauth2/clients"
+	"github.com/cwkr/auth-server/internal/oauth2/trl"
 	"github.com/cwkr/auth-server/internal/people"
 	"github.com/cwkr/auth-server/internal/server"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/tidwall/jsonc"
+	"golang.org/x/crypto/bcrypt"
 	"log"
 	"net/http"
 	"net/url"
@@ -21,20 +24,30 @@ import (
 	"strings"
 )
 
-var (
-	settings      *server.Settings
-	tokenCreator  oauth2.TokenCreator
-	tokenVarifier oauth2.TokenVerifier
-)
-
 func main() {
-	var err error
-	var settingsFilename string
-	var saveSettings bool
+	var (
+		settings         *server.Settings
+		tokenCreator     oauth2.TokenCreator
+		tokenVerifier    oauth2.TokenVerifier
+		peopleStore      people.Store
+		trlStore         trl.Store
+		clientStore      clients.Store
+		err              error
+		settingsFilename string
+		saveSettings     bool
+		setClientID      string
+		setClientSecret  string
+		setUserID        string
+		setPassword      string
+	)
 
 	log.SetOutput(os.Stdout)
 
 	flag.StringVar(&settingsFilename, "config", "auth-server.json", "config file name")
+	flag.StringVar(&setClientID, "client-id", "", "set client id")
+	flag.StringVar(&setClientSecret, "client-secret", "", "set client secret")
+	flag.StringVar(&setUserID, "user-id", "", "set user id")
+	flag.StringVar(&setPassword, "password", "", "set user password")
 	flag.BoolVar(&saveSettings, "save", false, "save config and exit")
 	flag.Parse()
 
@@ -63,6 +76,34 @@ func main() {
 		}
 	}
 
+	if setClientID != "" {
+		if settings.Clients == nil {
+			settings.Clients = map[string]clients.Client{}
+		}
+		var client = settings.Clients[setClientID]
+		if setClientSecret != "" {
+			if secretHash, err := bcrypt.GenerateFromPassword([]byte(setClientSecret), 5); err != nil {
+				log.Fatal(err)
+			} else {
+				client.SecretHash = string(secretHash)
+			}
+		}
+		settings.Clients[setClientID] = client
+	}
+
+	if setUserID != "" && setPassword != "" {
+		if settings.Users == nil {
+			settings.Users = map[string]people.AuthenticPerson{}
+		}
+		var user = settings.Users[setUserID]
+		if passwordHash, err := bcrypt.GenerateFromPassword([]byte(setPassword), 5); err != nil {
+			log.Fatal(err)
+		} else {
+			user.PasswordHash = string(passwordHash)
+		}
+		settings.Users[setUserID] = user
+	}
+
 	if saveSettings {
 		log.Printf("Saving settings to %s", settingsFilename)
 		configJson, _ := json.MarshalIndent(settings, "", "  ")
@@ -89,7 +130,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	tokenVarifier = oauth2.NewTokenVerifier(settings.AllKeys())
+	tokenVerifier = oauth2.NewTokenVerifier(settings.AllKeys())
 
 	var basePath = ""
 	var sessionStore = sessions.NewCookieStore([]byte(settings.SessionSecret))
@@ -108,9 +149,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var clients, users = maputil.LowerKeys(settings.Clients), maputil.LowerKeys(settings.Users)
+	var users = maputil.LowerKeys(settings.Users)
 
-	var peopleStore people.Store
 	if settings.PeopleStore != nil {
 		if strings.HasPrefix(settings.PeopleStore.URI, "postgresql:") {
 			if peopleStore, err = people.NewSqlStore(sessionStore, users, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
@@ -126,6 +166,9 @@ func main() {
 	} else {
 		peopleStore = people.NewEmbeddedStore(sessionStore, users, int64(settings.SessionTTL))
 	}
+
+	trlStore = trl.NewNoopStore()
+	clientStore = clients.NewInMemoryClientStore(settings.Clients)
 
 	var router = mux.NewRouter()
 
@@ -144,25 +187,28 @@ func main() {
 		Methods(http.MethodGet)
 	router.Handle(basePath+"/favicon-32x32.png", server.Favicon32x32Handler()).
 		Methods(http.MethodGet)
-	router.Handle(basePath+"/login", server.LoginHandler(basePath, peopleStore, clients, settings.Issuer, settings.SessionName)).
+	router.Handle(basePath+"/login", server.LoginHandler(basePath, peopleStore, clientStore, settings.Issuer, settings.SessionName)).
 		Methods(http.MethodGet, http.MethodPost)
-	router.Handle(basePath+"/logout", server.LogoutHandler(basePath, settings, sessionStore, clients))
+	router.Handle(basePath+"/logout", server.LogoutHandler(basePath, settings, sessionStore, clientStore))
 	router.Handle(basePath+"/health", server.HealthHandler(peopleStore)).
 		Methods(http.MethodGet)
 
 	router.Handle(basePath+"/jwks", oauth2.JwksHandler(settings.AllKeys())).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle(basePath+"/token", oauth2.TokenHandler(tokenCreator, peopleStore, clients, scope, settings.EnableRefreshTokenRotation)).
+	router.Handle(basePath+"/token", oauth2.TokenHandler(tokenCreator, peopleStore, clientStore, trlStore, scope)).
 		Methods(http.MethodOptions, http.MethodPost)
-	router.Handle(basePath+"/authorize", oauth2.AuthorizeHandler(basePath, tokenCreator, peopleStore, clients, scope, settings.SessionName)).
+	router.Handle(basePath+"/authorize", oauth2.AuthorizeHandler(basePath, tokenCreator, peopleStore, clientStore, scope, settings.SessionName)).
 		Methods(http.MethodGet)
 	router.Handle(basePath+"/.well-known/openid-configuration", oauth2.DiscoveryDocumentHandler(settings.Issuer, scope)).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle(basePath+"/userinfo", oauth2.UserInfoHandler(peopleStore, tokenVarifier, settings.AccessTokenExtraClaims)).
+	router.Handle(basePath+"/userinfo", oauth2.UserInfoHandler(peopleStore, tokenVerifier, settings.AccessTokenExtraClaims)).
 		Methods(http.MethodGet, http.MethodOptions)
 
+	router.Handle(basePath+"/revoke", oauth2.RevokeHandler(tokenCreator, clientStore, trlStore)).
+		Methods(http.MethodPost, http.MethodOptions)
+
 	if !settings.DisablePeopleAPI {
-		router.Handle(basePath+"/api/{version}/people/{user_id}", server.PeopleAPIHandler(peopleStore, settings.PeopleAPICustomVersions, settings.PeopleAPIRequireAuthN, tokenVarifier)).
+		router.Handle(basePath+"/api/{version}/people/{user_id}", server.PeopleAPIHandler(peopleStore, settings.PeopleAPICustomVersions, settings.PeopleAPIRequireAuthN, tokenVerifier)).
 			Methods(http.MethodGet, http.MethodOptions)
 	}
 

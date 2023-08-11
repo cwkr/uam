@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/cwkr/auth-server/internal/htmlutil"
 	"github.com/cwkr/auth-server/internal/httputil"
-	"github.com/cwkr/auth-server/internal/oauth2"
+	"github.com/cwkr/auth-server/internal/oauth2/clients"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/sessions"
 	"log"
@@ -17,7 +17,7 @@ type logoutHandler struct {
 	basePath     string
 	settings     *Settings
 	sessionStore sessions.Store
-	clients      oauth2.Clients
+	clientStore  clients.Store
 }
 
 func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -46,13 +46,16 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, clientExists := l.clients[strings.ToLower(clientID)]; !clientExists {
+	var client clients.Client
+	if c, err := l.clientStore.Lookup(clientID); err != nil {
 		htmlutil.Error(w, l.basePath, "invalid_client", http.StatusForbidden)
 		return
+	} else {
+		client = *c
 	}
 
 	if redirectURI != "" && !strings.HasPrefix(redirectURI, strings.TrimRight(l.settings.Issuer, "/")) {
-		if client, found := l.clients[strings.ToLower(clientID)]; found && client.RedirectURIPattern != "" {
+		if client.RedirectURIPattern != "" {
 			if !regexp.MustCompile(client.RedirectURIPattern).MatchString(redirectURI) {
 				htmlutil.Error(w, l.basePath, "post_logout_redirect_uri does not match Clients redirect URI pattern", http.StatusBadRequest)
 				return
@@ -60,7 +63,7 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if client, found := l.clients[strings.ToLower(clientID)]; found && client.SessionName != "" {
+	if client.SessionName != "" {
 		session, _ = l.sessionStore.Get(r, client.SessionName)
 	}
 
@@ -83,11 +86,11 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func LogoutHandler(basePath string, settings *Settings, sessionStore sessions.Store, clients oauth2.Clients) http.Handler {
+func LogoutHandler(basePath string, settings *Settings, sessionStore sessions.Store, clientStore clients.Store) http.Handler {
 	return &logoutHandler{
 		basePath:     basePath,
 		settings:     settings,
 		sessionStore: sessionStore,
-		clients:      clients,
+		clientStore:  clientStore,
 	}
 }

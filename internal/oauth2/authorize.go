@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/cwkr/auth-server/internal/htmlutil"
 	"github.com/cwkr/auth-server/internal/httputil"
+	"github.com/cwkr/auth-server/internal/oauth2/clients"
 	"github.com/cwkr/auth-server/internal/people"
 	"github.com/cwkr/auth-server/internal/stringutil"
 	"log"
@@ -30,7 +31,7 @@ type authorizeHandler struct {
 	basePath     string
 	tokenService TokenCreator
 	peopleStore  people.Store
-	clients      Clients
+	clientStore  clients.Store
 	scope        string
 	sessionName  string
 }
@@ -57,24 +58,24 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if client, clientExists := a.clients[clientID]; clientExists {
+	var client clients.Client
+	if c, err := a.clientStore.Lookup(clientID); err != nil {
+		Error(w, ErrorUnauthorizedClient, ErrorInvalidClient, http.StatusForbidden)
+		return
+	} else {
 		if responseType == ResponseTypeToken && client.DisableImplicit {
 			htmlutil.Error(w, a.basePath, ErrorUnsupportedGrantType, http.StatusBadRequest)
 			return
 		}
-		if client.SessionName != "" {
-			sessionName = client.SessionName
-		}
-	} else {
-		htmlutil.Error(w, a.basePath, ErrorInvalidClient, http.StatusForbidden)
-		return
+		client = *c
+	}
+	if client.SessionName != "" {
+		sessionName = client.SessionName
 	}
 
-	if client, found := a.clients[clientID]; found && client.RedirectURIPattern != "" {
-		if !regexp.MustCompile(client.RedirectURIPattern).MatchString(redirectURI) {
-			htmlutil.Error(w, a.basePath, ErrorRedirectURIMismatch, http.StatusBadRequest)
-			return
-		}
+	if client.RedirectURIPattern != "" && !regexp.MustCompile(client.RedirectURIPattern).MatchString(redirectURI) {
+		htmlutil.Error(w, a.basePath, ErrorRedirectURIMismatch, http.StatusBadRequest)
+		return
 	}
 
 	if uid, active := a.peopleStore.IsSessionActive(r, sessionName); active {
@@ -133,12 +134,12 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func AuthorizeHandler(basePath string, tokenService TokenCreator, peopleStore people.Store, clients Clients, scope, sessionName string) http.Handler {
+func AuthorizeHandler(basePath string, tokenService TokenCreator, peopleStore people.Store, clientStore clients.Store, scope, sessionName string) http.Handler {
 	return &authorizeHandler{
 		basePath:     basePath,
 		tokenService: tokenService,
 		peopleStore:  peopleStore,
-		clients:      clients,
+		clientStore:  clientStore,
 		scope:        scope,
 		sessionName:  sessionName,
 	}

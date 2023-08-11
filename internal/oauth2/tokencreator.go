@@ -1,13 +1,13 @@
 package oauth2
 
 import (
+	"crypto/rand"
 	"crypto/rsa"
 	"errors"
 	"github.com/cwkr/auth-server/internal/people"
-	"github.com/cwkr/auth-server/internal/stringutil"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"log"
+	"github.com/oklog/ulid/v2"
 	"strings"
 	"time"
 )
@@ -18,9 +18,9 @@ const (
 	GrantTypeRefreshToken      = "refresh_token"
 	GrantTypePassword          = "password"
 
+	TokenTypeAccessToken  = "access_token"
 	TokenTypeCode         = "code"
-	TokenTypeRefreshToken = "refresh"
-	TokenTypeIDToken      = "id"
+	TokenTypeRefreshToken = "refresh_token"
 	ResponseTypeCode      = "code"
 	ResponseTypeToken     = "token"
 )
@@ -33,12 +33,19 @@ type User struct {
 }
 
 type VerifiedClaims struct {
-	UserID    string `json:"user_id"`
-	ClientID  string `json:"client_id"`
-	Type      string `json:"typ"`
-	Scope     string `json:"scope"`
-	Challenge string `json:"challenge"`
-	Nonce     string `json:"nonce"`
+	UserID    string           `json:"user_id"`
+	ClientID  string           `json:"client_id"`
+	TokenID   string           `json:"jti"`
+	Type      string           `json:"typ"`
+	Scope     string           `json:"scope"`
+	Challenge string           `json:"challenge"`
+	Nonce     string           `json:"nonce"`
+	Expiry    *jwt.NumericDate `json:"exp"`
+}
+
+func NewTokenID(timestamp time.Time) string {
+	id, _ := ulid.New(ulid.Timestamp(timestamp), rand.Reader)
+	return id.String()
 }
 
 type TokenCreator interface {
@@ -72,15 +79,17 @@ func (t tokenCreator) Issuer() string {
 }
 
 func (t tokenCreator) GenerateAccessToken(user User, subject, clientID, scope string) (string, error) {
-	var now = time.Now().Unix()
+	var now = time.Now()
 
 	var claims = map[string]any{
-		ClaimIssuer:         t.issuer,
-		ClaimSubject:        subject,
-		ClaimIssuedAtTime:   now,
-		ClaimNotBeforeTime:  now,
-		ClaimExpirationTime: now + t.accessTokenTTL,
-		ClaimAudience:       []string{t.issuer, clientID},
+		ClaimIssuer:        t.issuer,
+		ClaimSubject:       subject,
+		ClaimType:          TokenTypeAccessToken,
+		ClaimIssuedAtTime:  now.Unix(),
+		ClaimNotBeforeTime: now.Unix(),
+		ClaimExpiryTime:    now.Unix() + t.accessTokenTTL,
+		ClaimAudience:      []string{t.issuer, clientID},
+		ClaimTokenID:       NewTokenID(now),
 	}
 
 	if scope != "" {
@@ -93,18 +102,18 @@ func (t tokenCreator) GenerateAccessToken(user User, subject, clientID, scope st
 }
 
 func (t tokenCreator) GenerateIDToken(user User, clientID, scope, accessTokenHash, nonce string) (string, error) {
-	var now = time.Now().Unix()
+	var now = time.Now()
 
 	var claims = map[string]any{
 		ClaimIssuer:          t.issuer,
 		ClaimSubject:         user.UserID,
-		ClaimType:            TokenTypeIDToken,
-		ClaimIssuedAtTime:    now,
-		ClaimNotBeforeTime:   now,
-		ClaimExpirationTime:  now + t.idTokenTTL,
+		ClaimIssuedAtTime:    now.Unix(),
+		ClaimNotBeforeTime:   now.Unix(),
+		ClaimExpiryTime:      now.Unix() + t.idTokenTTL,
 		ClaimAudience:        []string{t.issuer, clientID},
 		ClaimAccessTokenHash: accessTokenHash,
 		ClaimNonce:           nonce,
+		ClaimTokenID:         NewTokenID(now),
 	}
 
 	if strings.Contains(scope, "profile") {
@@ -125,17 +134,17 @@ func (t tokenCreator) GenerateIDToken(user User, clientID, scope, accessTokenHas
 }
 
 func (t tokenCreator) GenerateAuthCode(userID, clientID, scope, challenge, nonce string) (string, error) {
-	var now = time.Now().Unix()
+	var now = time.Now()
 
 	var claims = map[string]any{
-		ClaimIssuer:         t.issuer,
-		ClaimSubject:        stringutil.RandomBytesString(16),
-		ClaimType:           TokenTypeCode,
-		ClaimClientID:       clientID,
-		ClaimUserID:         userID,
-		ClaimIssuedAtTime:   now,
-		ClaimNotBeforeTime:  now,
-		ClaimExpirationTime: now + 300,
+		ClaimIssuer:        t.issuer,
+		ClaimSubject:       NewTokenID(now),
+		ClaimType:          TokenTypeCode,
+		ClaimClientID:      clientID,
+		ClaimUserID:        userID,
+		ClaimIssuedAtTime:  now.Unix(),
+		ClaimNotBeforeTime: now.Unix(),
+		ClaimExpiryTime:    now.Unix() + 300,
 	}
 
 	if scope != "" {
@@ -152,17 +161,19 @@ func (t tokenCreator) GenerateAuthCode(userID, clientID, scope, challenge, nonce
 }
 
 func (t tokenCreator) GenerateRefreshToken(userID, clientID, scope, nonce string) (string, error) {
-	var now = time.Now().Unix()
+	var now = time.Now()
+	var tokenID = NewTokenID(now)
 
 	var claims = map[string]any{
-		ClaimIssuer:         t.issuer,
-		ClaimSubject:        stringutil.RandomBytesString(16),
-		ClaimType:           TokenTypeRefreshToken,
-		ClaimClientID:       clientID,
-		ClaimUserID:         userID,
-		ClaimIssuedAtTime:   now,
-		ClaimNotBeforeTime:  now,
-		ClaimExpirationTime: now + t.refreshTokenTTL,
+		ClaimIssuer:        t.issuer,
+		ClaimSubject:       tokenID,
+		ClaimType:          TokenTypeRefreshToken,
+		ClaimClientID:      clientID,
+		ClaimUserID:        userID,
+		ClaimIssuedAtTime:  now.Unix(),
+		ClaimNotBeforeTime: now.Unix(),
+		ClaimExpiryTime:    now.Unix() + t.refreshTokenTTL,
+		ClaimTokenID:       tokenID,
 	}
 
 	if scope != "" {
@@ -178,16 +189,14 @@ func (t tokenCreator) GenerateRefreshToken(userID, clientID, scope, nonce string
 func (t tokenCreator) Verify(rawToken, tokenType string) (*VerifiedClaims, error) {
 	var token, err = jwt.ParseSigned(rawToken)
 	if err != nil {
-		log.Printf("!!! %s", err)
 		return nil, err
 	}
 	var claims = jwt.Claims{}
 	var verifiedClaims = VerifiedClaims{}
 	if err := token.Claims(&t.privateKey.PublicKey, &claims, &verifiedClaims); err != nil {
-		log.Printf("!!! %s", err)
 		return nil, err
 	}
-	if verifiedClaims.Type != tokenType {
+	if tokenType != "" && verifiedClaims.Type != tokenType {
 		return nil, ErrInvalidTokenType
 	}
 	err = claims.ValidateWithLeeway(jwt.Expected{
@@ -195,7 +204,6 @@ func (t tokenCreator) Verify(rawToken, tokenType string) (*VerifiedClaims, error
 		Time:   time.Now(),
 	}, 0)
 	if err != nil {
-		log.Printf("!!! %s", err)
 		return nil, err
 	} else {
 		return &verifiedClaims, nil

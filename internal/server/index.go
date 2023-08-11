@@ -48,7 +48,6 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"state":          fmt.Sprint(rand.Int()),
 		"nonce":          stringutil.RandomBytesString(10),
 		"scopes":         strings.Fields(i.scope),
-		"clients":        i.settings.Clients,
 		"code_verifier":  codeVerifier,
 		"code_challenge": pkce.CodeChallange(codeVerifier),
 	})
