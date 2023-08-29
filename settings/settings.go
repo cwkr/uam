@@ -1,4 +1,4 @@
-package server
+package settings
 
 import (
 	"crypto/rsa"
@@ -7,6 +7,7 @@ import (
 	"errors"
 	"github.com/cwkr/auth-server/internal/oauth2"
 	"github.com/cwkr/auth-server/internal/oauth2/clients"
+	"github.com/cwkr/auth-server/internal/oauth2/trl"
 	"github.com/cwkr/auth-server/internal/people"
 	"github.com/cwkr/auth-server/internal/stringutil"
 	"os"
@@ -14,13 +15,14 @@ import (
 	"strings"
 )
 
-type Settings struct {
+type Server struct {
 	Issuer                  string                            `json:"issuer"`
 	Port                    int                               `json:"port"`
 	Users                   map[string]people.AuthenticPerson `json:"users,omitempty"`
 	Key                     string                            `json:"key"`
 	AdditionalKeys          []string                          `json:"additional_keys,omitempty"`
 	Clients                 map[string]clients.Client         `json:"clients,omitempty"`
+	ClientStore             *clients.StoreSettings            `json:"client_store,omitempty"`
 	ExtraScope              string                            `json:"extra_scope,omitempty"`
 	AccessTokenExtraClaims  map[string]string                 `json:"access_token_extra_claims,omitempty"`
 	AccessTokenTTL          int                               `json:"access_token_ttl"`
@@ -31,17 +33,18 @@ type Settings struct {
 	SessionName             string                            `json:"session_name"`
 	SessionTTL              int                               `json:"session_ttl"`
 	PeopleStore             *people.StoreSettings             `json:"people_store,omitempty"`
-	DisablePeopleAPI        bool                              `json:"disable_people_api,omitempty"`
+	DisableAPI              bool                              `json:"disable_api,omitempty"`
 	PeopleAPICustomVersions map[string]map[string]string      `json:"people_api_custom_versions,omitempty"`
 	PeopleAPIRequireAuthN   bool                              `json:"people_api_require_authn,omitempty"`
 	LoginTemplate           string                            `json:"login_template,omitempty"`
+	TRLStore                *trl.StoreSettings                `json:"trl_store,omitempty"`
 	rsaSigningKey           *rsa.PrivateKey
 	rsaSigningKeyID         string
 	additionalPublicKeys    map[string]any
 }
 
-func NewDefaultSettings() *Settings {
-	return &Settings{
+func NewDefault() *Server {
+	return &Server{
 		Issuer:          "http://localhost:6080/",
 		Port:            6080,
 		AccessTokenTTL:  3_600,
@@ -53,7 +56,7 @@ func NewDefaultSettings() *Settings {
 	}
 }
 
-func (s *Settings) LoadKeys(basePath string, genNew bool) error {
+func (s *Server) LoadKeys(basePath string, genNew bool) error {
 	var err error
 	s.rsaSigningKeyID = "sigkey"
 	if strings.HasPrefix(s.Key, "-----BEGIN RSA PRIVATE KEY-----") {
@@ -98,19 +101,19 @@ func (s *Settings) LoadKeys(basePath string, genNew bool) error {
 	return err
 }
 
-func (s Settings) PrivateKey() *rsa.PrivateKey {
+func (s Server) PrivateKey() *rsa.PrivateKey {
 	return s.rsaSigningKey
 }
 
-func (s Settings) PublicKey() *rsa.PublicKey {
+func (s Server) PublicKey() *rsa.PublicKey {
 	return &s.rsaSigningKey.PublicKey
 }
 
-func (s Settings) KeyID() string {
+func (s Server) KeyID() string {
 	return s.rsaSigningKeyID
 }
 
-func (s Settings) AllKeys() map[string]any {
+func (s Server) AllKeys() map[string]any {
 	var allKeys = make(map[string]any)
 	allKeys[s.rsaSigningKeyID] = s.PublicKey()
 	for kid, publicKey := range s.additionalPublicKeys {

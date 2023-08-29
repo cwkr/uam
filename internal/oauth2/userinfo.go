@@ -2,7 +2,6 @@ package oauth2
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/cwkr/auth-server/internal/httputil"
 	"github.com/cwkr/auth-server/internal/people"
 	"log"
@@ -10,9 +9,8 @@ import (
 )
 
 type userInfoHandler struct {
-	peopleStore   people.Store
-	tokenVerifier TokenVerifier
-	extraClaims   map[string]string
+	peopleStore people.Store
+	extraClaims map[string]string
 }
 
 func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -25,19 +23,7 @@ func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var accessToken = httputil.ExtractAccessToken(r)
-	if accessToken == "" {
-		w.Header().Set("WWW-Authenticate", "Bearer realm=\"userinfo\"")
-		Error(w, "unauthorized", "authentication required", http.StatusUnauthorized)
-		return
-	}
-
-	var userID, authError = u.tokenVerifier.VerifyToken(accessToken)
-	if authError != nil {
-		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"userinfo\", error=\"invalid_token\", error_description=\"%s\"", authError.Error()))
-		Error(w, "invalid_token", authError.Error(), http.StatusUnauthorized)
-		return
-	}
+	var userID = r.Context().Value("user_id").(string)
 
 	if person, err := u.peopleStore.Lookup(userID); err == nil {
 
@@ -67,10 +53,9 @@ func (u *userInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func UserInfoHandler(peopleStore people.Store, tokenVerifier TokenVerifier, extraClaims map[string]string) http.Handler {
+func UserInfoHandler(peopleStore people.Store, extraClaims map[string]string) http.Handler {
 	return &userInfoHandler{
-		peopleStore:   peopleStore,
-		tokenVerifier: tokenVerifier,
-		extraClaims:   extraClaims,
+		peopleStore: peopleStore,
+		extraClaims: extraClaims,
 	}
 }

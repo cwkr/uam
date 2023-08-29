@@ -12,7 +12,7 @@ func NewNoopStore() Store {
 	return &noopStore{}
 }
 
-func (s *noopStore) Put(tokenID, tokenType string, expirationTime time.Time) error {
+func (s *noopStore) Put(tokenID string, expirationTime time.Time) error {
 	log.Printf("token %s revoked", tokenID)
 	return nil
 }

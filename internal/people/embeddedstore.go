@@ -78,3 +78,15 @@ func (e embeddedStore) Lookup(userID string) (*Person, error) {
 func (e embeddedStore) Ping() error {
 	return nil
 }
+
+func (e embeddedStore) ReadOnly() bool {
+	return true
+}
+
+func (e embeddedStore) Put(userID string, person *Person) error {
+	return ErrReadOnly
+}
+
+func (e embeddedStore) SetPassword(userID, password string) error {
+	return ErrReadOnly
+}

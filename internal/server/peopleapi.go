@@ -2,46 +2,29 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/cwkr/auth-server/internal/httputil"
 	"github.com/cwkr/auth-server/internal/oauth2"
 	"github.com/cwkr/auth-server/internal/people"
 	"github.com/gorilla/mux"
+	"io"
 	"log"
 	"net/http"
+	"strings"
 )
 
 type peopleAPIHandler struct {
 	peopleStore    people.Store
 	customVersions map[string]map[string]string
-	requireAuthN   bool
-	tokenVerifier  oauth2.TokenVerifier
 }
 
 func (p *peopleAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
-	httputil.AllowCORS(w, r, []string{http.MethodGet, http.MethodOptions}, p.requireAuthN)
+	httputil.AllowCORS(w, r, []string{http.MethodGet, http.MethodOptions, http.MethodPut}, true)
 
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
-	}
-
-	if p.requireAuthN {
-		var accessToken = httputil.ExtractAccessToken(r)
-		if accessToken == "" {
-			w.Header().Set("WWW-Authenticate", "Bearer realm=\"userinfo\"")
-			oauth2.Error(w, "unauthorized", "authentication required", http.StatusUnauthorized)
-			return
-		}
-
-		var _, authError = p.tokenVerifier.VerifyToken(accessToken)
-		if authError != nil {
-			w.Header().Set("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"people\", error=\"invalid_token\", error_description=\"%s\"", authError.Error()))
-			oauth2.Error(w, "invalid_token", authError.Error(), http.StatusUnauthorized)
-			return
-		}
 	}
 
 	var pathVars = mux.Vars(r)
@@ -78,11 +61,93 @@ func (p *peopleAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func PeopleAPIHandler(peopleStore people.Store, customVersions map[string]map[string]string, requireAuthN bool, tokenVerifier oauth2.TokenVerifier) http.Handler {
+func LookupPersonHandler(peopleStore people.Store, customVersions map[string]map[string]string) http.Handler {
 	return &peopleAPIHandler{
 		peopleStore:    peopleStore,
 		customVersions: customVersions,
-		requireAuthN:   requireAuthN,
-		tokenVerifier:  tokenVerifier,
 	}
+}
+
+func PutPersonHandler(peopleStore people.Store) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s", r.Method, r.URL)
+
+		httputil.AllowCORS(w, r, []string{http.MethodGet, http.MethodOptions, http.MethodPut}, true)
+
+		var person people.Person
+
+		if bytes, err := io.ReadAll(r.Body); err == nil {
+			if err := json.Unmarshal(bytes, &person); err != nil {
+				oauth2.Error(w, oauth2.ErrorInternal, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else {
+			oauth2.Error(w, oauth2.ErrorInternal, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		var userID = mux.Vars(r)["user_id"]
+
+		if !strings.EqualFold(userID, r.Context().Value("user_id").(string)) {
+			oauth2.Error(w, "access_denied", "", http.StatusForbidden)
+			return
+		}
+
+		if err := peopleStore.Put(userID, &person); err != nil {
+			log.Printf("!!! Update failed: %v", err)
+			oauth2.Error(w, oauth2.ErrorInternal, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
+type PasswordChange struct {
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password"`
+}
+
+func ChangePasswordHandler(peopleStore people.Store) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s", r.Method, r.URL)
+
+		httputil.AllowCORS(w, r, []string{http.MethodOptions, http.MethodPut}, true)
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		var passwordChange PasswordChange
+
+		if bytes, err := io.ReadAll(r.Body); err == nil {
+			if err := json.Unmarshal(bytes, &passwordChange); err != nil {
+				oauth2.Error(w, oauth2.ErrorInternal, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else {
+			oauth2.Error(w, oauth2.ErrorInternal, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		var userID = mux.Vars(r)["user_id"]
+
+		if !strings.EqualFold(userID, r.Context().Value("user_id").(string)) {
+			oauth2.Error(w, "access_denied", "", http.StatusForbidden)
+			return
+		}
+
+		if _, err := peopleStore.Authenticate(userID, passwordChange.OldPassword); err != nil {
+			oauth2.Error(w, "access_denied", "", http.StatusForbidden)
+			return
+		}
+
+		if err := peopleStore.SetPassword(userID, passwordChange.NewPassword); err != nil {
+			log.Printf("!!! Update failed: %v", err)
+			oauth2.Error(w, oauth2.ErrorInternal, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	})
 }

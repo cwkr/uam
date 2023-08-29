@@ -11,4 +11,7 @@ type Store interface {
 	SaveSession(r *http.Request, w http.ResponseWriter, authTime time.Time, userID, sessionName string) error
 	Lookup(userID string) (*Person, error)
 	Ping() error
+	ReadOnly() bool
+	Put(userID string, person *Person) error
+	SetPassword(userID, password string) error
 }

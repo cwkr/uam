@@ -32,6 +32,10 @@ It is possible to use a PostgreSQL database or LDAP as people store.
       "redirect_uri_pattern": "https?:\\/\\/localhost(:\\d+)?\\/"
     }
   },
+  "client_store": {
+    "uri": "postgresql://crauth:trustno1@localhost/dev?sslmode=disable",
+    "query": "SELECT COALESCE(redirect_uri_pattern, ''), COALESCE(secret_hash, ''), COALESCE(session_name, ''), disable_implicit, enable_refresh_token_rotation FROM clients WHERE lower(client_id) = lower($1)"
+  }
   "access_token_extra_claims": {
     "prn": "$user_id",
     "email": "$email",
@@ -49,11 +53,13 @@ It is possible to use a PostgreSQL database or LDAP as people store.
   "session_ttl": 28800,
   "people_store": {
     "uri": "postgresql://authserver:trustno1@localhost/dev?sslmode=disable",
-    "credentials_query": "SELECT id, password_hash FROM users WHERE lower(id) = lower($1)",
-    "groups_query": "SELECT id FROM groups WHERE lower(user_id) = lower($1)",
-    "details_query": "SELECT first_name, last_name, email, TO_CHAR(birthdate, 'YYYY-MM-DD') FROM users WHERE lower(id) = lower($1)"
+    "credentials_query": "SELECT user_id, password_hash FROM users WHERE lower(user_id) = lower($1)",
+    "groups_query": "SELECT UNNEST(groups) FROM users WHERE lower(user_id) = lower($1)",
+    "details_query": "SELECT COALESCE(given_name, '') given_name, COALESCE(family_name, '') family_name, COALESCE(email, '') email, COALESCE(TO_CHAR(birthdate, 'YYYY-MM-DD'), '') birthdate, COALESCE(department, '') department, COALESCE(phone_number, '') phone_number, COALESCE(street_address, '') street_address, COALESCE(locality, '') locality, COALESCE(postal_code, '') postal_code FROM people WHERE lower(user_id) = lower($1)",
+    "update": "UPDATE people SET given_name = $2, family_name = $3, email = $4, department = $5, birthdate = TO_DATE($6, 'YYYY-MM-DD'), phone_number = $7, locality = $8, street_address = $9, postal_code = $10, last_modified = now() WHERE lower(user_id) = lower($1)",
+    "set_password": "UPDATE people SET password_hash = $2, last_modified = now() WHERE lower(user_id) = lower($1)"
   },
-  "disable_people_api": false
+  "disable_api": false
 }
 ```
 
@@ -102,7 +108,7 @@ It is possible to use a PostgreSQL database or LDAP as people store.
       "postal_code_attribute": "postalcode"
     }
   },
-  "disable_people_api": false
+  "disable_api": false
 }
 ```
 

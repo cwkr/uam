@@ -18,7 +18,6 @@ const (
 	GrantTypeRefreshToken      = "refresh_token"
 	GrantTypePassword          = "password"
 
-	TokenTypeAccessToken  = "access_token"
 	TokenTypeCode         = "code"
 	TokenTypeRefreshToken = "refresh_token"
 	ResponseTypeCode      = "code"
@@ -84,7 +83,6 @@ func (t tokenCreator) GenerateAccessToken(user User, subject, clientID, scope st
 	var claims = map[string]any{
 		ClaimIssuer:        t.issuer,
 		ClaimSubject:       subject,
-		ClaimType:          TokenTypeAccessToken,
 		ClaimIssuedAtTime:  now.Unix(),
 		ClaimNotBeforeTime: now.Unix(),
 		ClaimExpiryTime:    now.Unix() + t.accessTokenTTL,

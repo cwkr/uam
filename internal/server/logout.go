@@ -5,6 +5,7 @@ import (
 	"github.com/cwkr/auth-server/internal/htmlutil"
 	"github.com/cwkr/auth-server/internal/httputil"
 	"github.com/cwkr/auth-server/internal/oauth2/clients"
+	settings "github.com/cwkr/auth-server/settings"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/sessions"
 	"log"
@@ -14,17 +15,17 @@ import (
 )
 
 type logoutHandler struct {
-	basePath     string
-	settings     *Settings
-	sessionStore sessions.Store
-	clientStore  clients.Store
+	basePath       string
+	serverSettings *settings.Server
+	sessionStore   sessions.Store
+	clientStore    clients.Store
 }
 
 func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
 	var (
-		session, _  = l.sessionStore.Get(r, l.settings.SessionName)
+		session, _  = l.sessionStore.Get(r, l.serverSettings.SessionName)
 		clientID    = strings.TrimSpace(r.FormValue("client_id"))
 		redirectURI = strings.TrimSpace(r.FormValue("post_logout_redirect_uri"))
 		idTokenHint = strings.TrimSpace(r.FormValue("id_token_hint"))
@@ -34,7 +35,7 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if token, err := jwt.ParseSigned(idTokenHint); err == nil {
 			var claims = jwt.Claims{}
 			if err := token.UnsafeClaimsWithoutVerification(&claims); err == nil {
-				if len([]string(claims.Audience)) > 1 && claims.Issuer == l.settings.Issuer {
+				if len([]string(claims.Audience)) > 1 && claims.Issuer == l.serverSettings.Issuer {
 					clientID = claims.Audience[1]
 				}
 			}
@@ -54,7 +55,7 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		client = *c
 	}
 
-	if redirectURI != "" && !strings.HasPrefix(redirectURI, strings.TrimRight(l.settings.Issuer, "/")) {
+	if redirectURI != "" && !strings.HasPrefix(redirectURI, strings.TrimRight(l.serverSettings.Issuer, "/")) {
 		if client.RedirectURIPattern != "" {
 			if !regexp.MustCompile(client.RedirectURIPattern).MatchString(redirectURI) {
 				htmlutil.Error(w, l.basePath, "post_logout_redirect_uri does not match Clients redirect URI pattern", http.StatusBadRequest)
@@ -86,11 +87,11 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func LogoutHandler(basePath string, settings *Settings, sessionStore sessions.Store, clientStore clients.Store) http.Handler {
+func LogoutHandler(basePath string, serverSettings *settings.Server, sessionStore sessions.Store, clientStore clients.Store) http.Handler {
 	return &logoutHandler{
-		basePath:     basePath,
-		settings:     settings,
-		sessionStore: sessionStore,
-		clientStore:  clientStore,
+		basePath:       basePath,
+		serverSettings: serverSettings,
+		sessionStore:   sessionStore,
+		clientStore:    clientStore,
 	}
 }

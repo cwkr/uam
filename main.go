@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -12,6 +13,8 @@ import (
 	"github.com/cwkr/auth-server/internal/oauth2/trl"
 	"github.com/cwkr/auth-server/internal/people"
 	"github.com/cwkr/auth-server/internal/server"
+	"github.com/cwkr/auth-server/middleware"
+	"github.com/cwkr/auth-server/settings"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/tidwall/jsonc"
@@ -26,9 +29,9 @@ import (
 
 func main() {
 	var (
-		settings         *server.Settings
+		serverSettings   *settings.Server
 		tokenCreator     oauth2.TokenCreator
-		tokenVerifier    oauth2.TokenVerifier
+		tokenVerifier    middleware.TokenVerifier
 		peopleStore      people.Store
 		trlStore         trl.Store
 		clientStore      clients.Store
@@ -52,23 +55,23 @@ func main() {
 	flag.Parse()
 
 	// Set defaults
-	settings = server.NewDefaultSettings()
+	serverSettings = settings.NewDefault()
 
 	log.Printf("Loading settings from %s", settingsFilename)
 	if bytes, err := os.ReadFile(settingsFilename); err == nil {
-		if err := json.Unmarshal(jsonc.ToJSON(bytes), settings); err != nil {
+		if err := json.Unmarshal(jsonc.ToJSON(bytes), serverSettings); err != nil {
 			log.Fatal(err)
 		}
 	} else {
 		log.Print(err)
 	}
 
-	if err := settings.LoadKeys(filepath.Dir(settingsFilename), saveSettings); err != nil {
+	if err := serverSettings.LoadKeys(filepath.Dir(settingsFilename), saveSettings); err != nil {
 		log.Fatal(err)
 	}
 
-	if settings.LoginTemplate != "" {
-		var filename = filepath.Join(filepath.Dir(settingsFilename), strings.TrimPrefix(settings.LoginTemplate, "@"))
+	if serverSettings.LoginTemplate != "" {
+		var filename = filepath.Join(filepath.Dir(settingsFilename), strings.TrimPrefix(serverSettings.LoginTemplate, "@"))
 		log.Printf("Loading login form template from %s", filename)
 		err = server.LoadLoginTemplate(filename)
 		if err != nil {
@@ -77,10 +80,10 @@ func main() {
 	}
 
 	if setClientID != "" {
-		if settings.Clients == nil {
-			settings.Clients = map[string]clients.Client{}
+		if serverSettings.Clients == nil {
+			serverSettings.Clients = map[string]clients.Client{}
 		}
-		var client = settings.Clients[setClientID]
+		var client = serverSettings.Clients[setClientID]
 		if setClientSecret != "" {
 			if secretHash, err := bcrypt.GenerateFromPassword([]byte(setClientSecret), 5); err != nil {
 				log.Fatal(err)
@@ -88,56 +91,56 @@ func main() {
 				client.SecretHash = string(secretHash)
 			}
 		}
-		settings.Clients[setClientID] = client
+		serverSettings.Clients[setClientID] = client
 	}
 
 	if setUserID != "" && setPassword != "" {
-		if settings.Users == nil {
-			settings.Users = map[string]people.AuthenticPerson{}
+		if serverSettings.Users == nil {
+			serverSettings.Users = map[string]people.AuthenticPerson{}
 		}
-		var user = settings.Users[setUserID]
+		var user = serverSettings.Users[setUserID]
 		if passwordHash, err := bcrypt.GenerateFromPassword([]byte(setPassword), 5); err != nil {
 			log.Fatal(err)
 		} else {
 			user.PasswordHash = string(passwordHash)
 		}
-		settings.Users[setUserID] = user
+		serverSettings.Users[setUserID] = user
 	}
 
 	if saveSettings {
 		log.Printf("Saving settings to %s", settingsFilename)
-		configJson, _ := json.MarshalIndent(settings, "", "  ")
+		configJson, _ := json.MarshalIndent(serverSettings, "", "  ")
 		if err := os.WriteFile(settingsFilename, configJson, 0644); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
 	}
 
-	var scope = strings.TrimSpace(oauth2.OIDCDefaultScope + " " + settings.ExtraScope)
+	var scope = strings.TrimSpace(oauth2.OIDCDefaultScope + " " + serverSettings.ExtraScope)
 
 	tokenCreator, err = oauth2.NewTokenCreator(
-		settings.PrivateKey(),
-		settings.KeyID(),
-		settings.Issuer,
+		serverSettings.PrivateKey(),
+		serverSettings.KeyID(),
+		serverSettings.Issuer,
 		scope,
-		int64(settings.AccessTokenTTL),
-		int64(settings.RefreshTokenTTL),
-		int64(settings.IDTokenTTL),
-		settings.AccessTokenExtraClaims,
-		settings.IDTokenExtraClaims,
+		int64(serverSettings.AccessTokenTTL),
+		int64(serverSettings.RefreshTokenTTL),
+		int64(serverSettings.IDTokenTTL),
+		serverSettings.AccessTokenExtraClaims,
+		serverSettings.IDTokenExtraClaims,
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	tokenVerifier = oauth2.NewTokenVerifier(settings.AllKeys())
+	tokenVerifier = middleware.NewTokenVerifier(serverSettings.AllKeys())
 
 	var basePath = ""
-	var sessionStore = sessions.NewCookieStore([]byte(settings.SessionSecret))
+	var sessionStore = sessions.NewCookieStore([]byte(serverSettings.SessionSecret))
 	sessionStore.Options.HttpOnly = true
 	sessionStore.Options.MaxAge = 0
 	sessionStore.Options.SameSite = http.SameSiteLaxMode
-	if issuerUrl, err := url.Parse(settings.Issuer); err == nil {
+	if issuerUrl, err := url.Parse(serverSettings.Issuer); err == nil {
 		if issuerUrl.Path != "/" {
 			basePath = strings.TrimSuffix(issuerUrl.Path, "/")
 			sessionStore.Options.Path = basePath
@@ -149,31 +152,54 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var users = maputil.LowerKeys(settings.Users)
+	var dbs = make(map[string]*sql.DB)
 
-	if settings.PeopleStore != nil {
-		if strings.HasPrefix(settings.PeopleStore.URI, "postgresql:") {
-			if peopleStore, err = people.NewSqlStore(sessionStore, users, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
+	var users = maputil.LowerKeys(serverSettings.Users)
+
+	if serverSettings.PeopleStore != nil {
+		if strings.HasPrefix(serverSettings.PeopleStore.URI, "postgresql:") {
+			if peopleStore, err = people.NewSqlStore(sessionStore, users, int64(serverSettings.SessionTTL), dbs, serverSettings.PeopleStore); err != nil {
 				log.Fatal(err)
 			}
-		} else if strings.HasPrefix(settings.PeopleStore.URI, "ldap:") || strings.HasPrefix(settings.PeopleStore.URI, "ldaps:") {
-			if peopleStore, err = people.NewLdapStore(sessionStore, users, int64(settings.SessionTTL), settings.PeopleStore); err != nil {
+		} else if strings.HasPrefix(serverSettings.PeopleStore.URI, "ldap:") || strings.HasPrefix(serverSettings.PeopleStore.URI, "ldaps:") {
+			if peopleStore, err = people.NewLdapStore(sessionStore, users, int64(serverSettings.SessionTTL), serverSettings.PeopleStore); err != nil {
 				log.Fatal(err)
 			}
 		} else {
-			log.Fatal(errors.New("unsupported or empty store uri: " + settings.PeopleStore.URI))
+			log.Fatal(errors.New("unsupported or empty store uri: " + serverSettings.PeopleStore.URI))
 		}
 	} else {
-		peopleStore = people.NewEmbeddedStore(sessionStore, users, int64(settings.SessionTTL))
+		peopleStore = people.NewEmbeddedStore(sessionStore, users, int64(serverSettings.SessionTTL))
 	}
 
-	trlStore = trl.NewNoopStore()
-	clientStore = clients.NewInMemoryClientStore(settings.Clients)
+	if serverSettings.ClientStore != nil {
+		if strings.HasPrefix(serverSettings.ClientStore.URI, "postgresql:") {
+			if clientStore, err = clients.NewSqlStore(serverSettings.Clients, dbs, serverSettings.ClientStore); err != nil {
+				log.Fatal(err)
+			}
+		} else {
+			log.Fatal(errors.New("unsupported or empty store uri: " + serverSettings.ClientStore.URI))
+		}
+	} else {
+		clientStore = clients.NewInMemoryClientStore(serverSettings.Clients)
+	}
+
+	if serverSettings.TRLStore != nil {
+		if strings.HasPrefix(serverSettings.TRLStore.URI, "postgresql:") {
+			if trlStore, err = trl.NewSqlStore(dbs, serverSettings.TRLStore); err != nil {
+				log.Fatal(err)
+			}
+		} else {
+			log.Fatal(errors.New("unsupported or empty store uri: " + serverSettings.TRLStore.URI))
+		}
+	} else {
+		trlStore = trl.NewNoopStore()
+	}
 
 	var router = mux.NewRouter()
 
 	router.NotFoundHandler = htmlutil.NotFoundHandler(basePath)
-	router.Handle(basePath+"/", server.IndexHandler(basePath, settings, scope)).
+	router.Handle(basePath+"/", server.IndexHandler(basePath, serverSettings, scope)).
 		Methods(http.MethodGet)
 	router.Handle(basePath+"/style.css", server.StyleHandler()).
 		Methods(http.MethodGet)
@@ -187,33 +213,43 @@ func main() {
 		Methods(http.MethodGet)
 	router.Handle(basePath+"/favicon-32x32.png", server.Favicon32x32Handler()).
 		Methods(http.MethodGet)
-	router.Handle(basePath+"/login", server.LoginHandler(basePath, peopleStore, clientStore, settings.Issuer, settings.SessionName)).
+	router.Handle(basePath+"/login", server.LoginHandler(basePath, peopleStore, clientStore, serverSettings.Issuer, serverSettings.SessionName)).
 		Methods(http.MethodGet, http.MethodPost)
-	router.Handle(basePath+"/logout", server.LogoutHandler(basePath, settings, sessionStore, clientStore))
+	router.Handle(basePath+"/logout", server.LogoutHandler(basePath, serverSettings, sessionStore, clientStore))
 	router.Handle(basePath+"/health", server.HealthHandler(peopleStore)).
 		Methods(http.MethodGet)
 
-	router.Handle(basePath+"/jwks", oauth2.JwksHandler(settings.AllKeys())).
+	router.Handle(basePath+"/jwks", oauth2.JwksHandler(serverSettings.AllKeys())).
 		Methods(http.MethodGet, http.MethodOptions)
 	router.Handle(basePath+"/token", oauth2.TokenHandler(tokenCreator, peopleStore, clientStore, trlStore, scope)).
 		Methods(http.MethodOptions, http.MethodPost)
-	router.Handle(basePath+"/authorize", oauth2.AuthorizeHandler(basePath, tokenCreator, peopleStore, clientStore, scope, settings.SessionName)).
+	router.Handle(basePath+"/authorize", oauth2.AuthorizeHandler(basePath, tokenCreator, peopleStore, clientStore, scope, serverSettings.SessionName)).
 		Methods(http.MethodGet)
-	router.Handle(basePath+"/.well-known/openid-configuration", oauth2.DiscoveryDocumentHandler(settings.Issuer, scope)).
+	router.Handle(basePath+"/.well-known/openid-configuration", oauth2.DiscoveryDocumentHandler(serverSettings.Issuer, scope)).
 		Methods(http.MethodGet, http.MethodOptions)
-	router.Handle(basePath+"/userinfo", oauth2.UserInfoHandler(peopleStore, tokenVerifier, settings.AccessTokenExtraClaims)).
+	router.Handle(basePath+"/userinfo", middleware.RequireJWT(oauth2.UserInfoHandler(peopleStore, serverSettings.AccessTokenExtraClaims), tokenVerifier)).
 		Methods(http.MethodGet, http.MethodOptions)
 
 	router.Handle(basePath+"/revoke", oauth2.RevokeHandler(tokenCreator, clientStore, trlStore)).
 		Methods(http.MethodPost, http.MethodOptions)
 
-	if !settings.DisablePeopleAPI {
-		router.Handle(basePath+"/api/{version}/people/{user_id}", server.PeopleAPIHandler(peopleStore, settings.PeopleAPICustomVersions, settings.PeopleAPIRequireAuthN, tokenVerifier)).
+	if !serverSettings.DisableAPI {
+		var lookupPersonHandler = server.LookupPersonHandler(peopleStore, serverSettings.PeopleAPICustomVersions)
+		if serverSettings.PeopleAPIRequireAuthN {
+			lookupPersonHandler = middleware.RequireJWT(lookupPersonHandler, tokenVerifier)
+		}
+		router.Handle(basePath+"/api/{version}/people/{user_id}", lookupPersonHandler).
 			Methods(http.MethodGet, http.MethodOptions)
+		if !peopleStore.ReadOnly() {
+			router.Handle(basePath+"/api/v1/people/{user_id}", middleware.RequireJWT(server.PutPersonHandler(peopleStore), tokenVerifier)).
+				Methods(http.MethodPut)
+			router.Handle(basePath+"/api/v1/people/{user_id}/password", middleware.RequireJWT(server.ChangePasswordHandler(peopleStore), tokenVerifier)).
+				Methods(http.MethodOptions, http.MethodPut)
+		}
 	}
 
-	log.Printf("Listening on http://localhost:%d%s/", settings.Port, basePath)
-	err = http.ListenAndServe(fmt.Sprintf(":%d", settings.Port), router)
+	log.Printf("Listening on http://localhost:%d%s/", serverSettings.Port, basePath)
+	err = http.ListenAndServe(fmt.Sprintf(":%d", serverSettings.Port), router)
 	if err != nil {
 		log.Fatal(err)
 	}

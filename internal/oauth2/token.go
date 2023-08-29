@@ -180,7 +180,7 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		timing.Start("jwtgen")
 		accessToken, _ = t.tokenService.GenerateAccessToken(user, refreshClaims.UserID, clientID, refreshClaims.Scope)
 		if client.EnableRefreshTokenRotation && strings.Contains(refreshClaims.Scope, "offline_access") {
-			_ = t.trlStore.Put(refreshClaims.TokenID, TokenTypeRefreshToken, refreshClaims.Expiry.Time())
+			_ = t.trlStore.Put(refreshClaims.TokenID, refreshClaims.Expiry.Time())
 			refreshToken, _ = t.tokenService.GenerateRefreshToken(refreshClaims.UserID, clientID, refreshClaims.Scope, refreshClaims.Nonce)
 		} else {
 			refreshToken = ""

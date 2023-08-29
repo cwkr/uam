@@ -65,12 +65,13 @@ func (j *revokeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error(w, ErrorInvalidRequest, "token without id (jti)", http.StatusInternalServerError)
 			return
 		}
-		if err := j.trlStore.Put(claims.TokenID, claims.Type, claims.Expiry.Time()); err != nil {
+		if err := j.trlStore.Put(claims.TokenID, claims.Expiry.Time()); err != nil {
+			log.Printf("!!! %s", err)
 			Error(w, ErrorInternal, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	} else {
-		log.Printf("!!! %s", err)
+		log.Printf("!!! Token already invalid: %s", err)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

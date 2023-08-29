@@ -1,6 +1,6 @@
 import * as jwt from './jwt.js';
 
-function remember() {
+function rememberRequestForm() {
     const clientId = document.getElementById("client_id").value;
     const responseType = document.getElementById("response_type").value;
     const scope = document.getElementById("scope").value;
@@ -11,6 +11,13 @@ function remember() {
     if (responseType === "code") {
         sessionStorage.setItem('code_verifier', codeVerifier);
     }
+}
+
+function rememberRevokeForm() {
+    const clientId = document.getElementById("revoke_client_id").value;
+    const tokenTypeHint = document.getElementById("token_type_hint").value;
+    sessionStorage.setItem("client_id", clientId);
+    sessionStorage.setItem("token_type_hint", tokenTypeHint);
 }
 
 function updateFields(responseType) {
@@ -77,7 +84,7 @@ function getToken(params) {
         });
 }
 
-function onFormSubmit(event) {
+function onRequestFormSubmit(event) {
     const checkedScopes = document.querySelectorAll('input[id^="scope_"]:checked');
     document.getElementById("scope").value = Array.from(checkedScopes).map(input => input.value).join(' ');
 
@@ -102,11 +109,38 @@ function onFormSubmit(event) {
         });
     }
 
-    remember();
+    rememberRequestForm();
+}
+
+function onRevokeFormSubmit(event) {
+    event.preventDefault();
+    const postParams = new URLSearchParams({
+        "token_type_hint": document.getElementById("token_type_hint").value,
+        "client_id": document.getElementById("revoke_client_id").value,
+        "client_secret": document.getElementById("revoke_client_secret").value,
+        "token": document.getElementById("revoke_token").value,
+    });
+    fetch("revoke", {method: "POST", body: postParams})
+        .then(async resp => {
+            if (!resp.ok) {
+                throw new Error(await resp.text());
+            }
+            return resp.text();
+        })
+        .then(data => {
+            document.getElementById("revoke_token").value = '';
+        })
+        .catch(error => {
+            console.error(error);
+            document.getElementById("revoke_token").value = error.message;
+        });
+
+    rememberRevokeForm();
 }
 
 document.getElementById('response_type').addEventListener("change", onResponseTypeChange);
-document.getElementById('request_form').addEventListener("submit", onFormSubmit);
+document.getElementById('request_form').addEventListener("submit", onRequestFormSubmit);
+document.getElementById('revoke_form').addEventListener("submit", onRevokeFormSubmit);
 document.addEventListener('DOMContentLoaded', () => {
     if (document.readyState === 'loading') {
         return;
@@ -122,6 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (rememberedClientId) {
         document.getElementById("client_id").value = rememberedClientId;
         document.getElementById("client_id_logout").value = rememberedClientId;
+        document.getElementById("revoke_client_id").value = rememberedClientId;
     }
 
     const rememberedScope = sessionStorage.getItem("scope");
@@ -132,6 +167,12 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(input);
             input.checked = rememberedScopes.includes(input.value);
         });
+    }
+
+    const rememberedTokenTypeHint = sessionStorage.getItem("token_type_hint");
+    if (rememberedTokenTypeHint) {
+        document.getElementById("token_type_hint").value = rememberedTokenTypeHint;
+        updateFields(rememberedTokenTypeHint);
     }
 
     let urlParams = new URLSearchParams();
@@ -169,6 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.refresh_token) {
                     document.getElementById("refresh_token_output").textContent = data.refresh_token;
                     document.getElementById("refresh_token_panel").style.display = 'block';
+                    document.getElementById("revoke_token").value = data.refresh_token;
                 }
                 if (data.id_token) {
                     document.getElementById("id_token_output").textContent = data.id_token;

@@ -10,6 +10,7 @@ import (
 	"github.com/cwkr/auth-server/internal/httputil"
 	"github.com/cwkr/auth-server/internal/oauth2/pkce"
 	"github.com/cwkr/auth-server/internal/stringutil"
+	"github.com/cwkr/auth-server/settings"
 	"html/template"
 	"log"
 	"math/rand"
@@ -21,17 +22,17 @@ import (
 var indexTpl string
 
 type indexHandler struct {
-	basePath  string
-	settings  *Settings
-	publicKey *rsa.PublicKey
-	scope     string
-	tpl       *template.Template
+	basePath       string
+	serverSettings *settings.Server
+	publicKey      *rsa.PublicKey
+	scope          string
+	tpl            *template.Template
 }
 
 func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.Method, r.URL)
 
-	var pubASN1, _ = x509.MarshalPKIXPublicKey(i.settings.PublicKey())
+	var pubASN1, _ = x509.MarshalPKIXPublicKey(i.serverSettings.PublicKey())
 
 	var pubBytes = pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
@@ -43,7 +44,7 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var codeVerifier = stringutil.RandomBytesString(10)
 	var err = i.tpl.ExecuteTemplate(w, "index", map[string]any{
 		"base_path":      i.basePath,
-		"issuer":         strings.TrimRight(i.settings.Issuer, "/"),
+		"issuer":         strings.TrimRight(i.serverSettings.Issuer, "/"),
 		"public_key":     string(pubBytes),
 		"state":          fmt.Sprint(rand.Int()),
 		"nonce":          stringutil.RandomBytesString(10),
@@ -56,11 +57,11 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func IndexHandler(basePath string, settings *Settings, scope string) http.Handler {
+func IndexHandler(basePath string, serverSettings *settings.Server, scope string) http.Handler {
 	return &indexHandler{
-		basePath: basePath,
-		settings: settings,
-		scope:    scope,
-		tpl:      template.Must(template.New("index").Parse(indexTpl)),
+		basePath:       basePath,
+		serverSettings: serverSettings,
+		scope:          scope,
+		tpl:            template.Must(template.New("index").Parse(indexTpl)),
 	}
 }
