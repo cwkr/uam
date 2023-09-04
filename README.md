@@ -34,8 +34,8 @@ It is possible to use a PostgreSQL database or LDAP as people store.
   },
   "client_store": {
     "uri": "postgresql://crauth:trustno1@localhost/dev?sslmode=disable",
-    "query": "SELECT COALESCE(redirect_uri_pattern, ''), COALESCE(secret_hash, ''), COALESCE(session_name, ''), disable_implicit, enable_refresh_token_rotation FROM clients WHERE lower(client_id) = lower($1)"
-  }
+    "query": "SELECT COALESCE(redirect_uri_pattern, '') redirect_uri_pattern, COALESCE(secret_hash, '') secret_hash, COALESCE(session_name, '') session_name, disable_implicit, enable_refresh_token_rotation FROM clients WHERE lower(client_id) = lower($1)"
+  },
   "access_token_extra_claims": {
     "prn": "$user_id",
     "email": "$email",
