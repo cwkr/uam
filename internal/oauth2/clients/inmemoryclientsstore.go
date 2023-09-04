@@ -12,24 +12,28 @@ func NewInMemoryClientStore(clientMap map[string]Client) Store {
 	return inMemoryClientStore(maputil.LowerKeys(clientMap))
 }
 
-func (i inMemoryClientStore) Authenticate(clientID, clientSecret string) (*Client, error) {
+func (i inMemoryClientStore) authenticate(client *Client, clientSecret string) (*Client, error) {
 	if clientSecret == "" {
 		return nil, ErrClientSecretRequired
 	}
+	if client.SecretHash == "" {
+		return nil, ErrClientNoSecret
+	}
+	if strings.HasPrefix(client.SecretHash, "$2") {
+		if err := bcrypt.CompareHashAndPassword([]byte(client.SecretHash), []byte(clientSecret)); err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, ErrClientInvalidSecretHash
+	}
+	return client, nil
+}
+
+func (i inMemoryClientStore) Authenticate(clientID, clientSecret string) (*Client, error) {
 	if client, err := i.Lookup(clientID); err != nil {
 		return nil, err
 	} else {
-		if client.SecretHash == "" {
-			return nil, ErrClientNoSecret
-		}
-		if strings.HasPrefix(client.SecretHash, "$2") {
-			if err := bcrypt.CompareHashAndPassword([]byte(client.SecretHash), []byte(clientSecret)); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, ErrClientInvalidSecretHash
-		}
-		return client, nil
+		return i.authenticate(client, clientSecret)
 	}
 }
 

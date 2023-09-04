@@ -29,6 +29,17 @@ func NewSqlStore(clientMap map[string]Client, dbs map[string]*sql.DB, settings *
 	}, nil
 }
 
+func (s *sqlStore) Authenticate(clientID, clientSecret string) (*Client, error) {
+	if client, err := s.inMemoryClientStore.Authenticate(clientID, clientSecret); err == nil {
+		return client, nil
+	}
+	if client, err := s.Lookup(clientID); err != nil {
+		return nil, err
+	} else {
+		return s.inMemoryClientStore.authenticate(client, clientSecret)
+	}
+}
+
 func (s *sqlStore) Lookup(clientID string) (*Client, error) {
 	if c, err := s.inMemoryClientStore.Lookup(clientID); err == nil {
 		return c, nil
