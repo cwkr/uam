@@ -24,7 +24,9 @@ const (
 func AddExtraClaims(claims map[string]any, extraClaims map[string]string, user User, clientID string) {
 	for key, tmpl := range extraClaims {
 		if strings.EqualFold(strings.TrimSpace(tmpl), "$groups") {
-			claims[key] = user.Groups
+			if len(user.Groups) > 0 {
+				claims[key] = user.Groups
+			}
 		} else if value := strings.TrimSpace(os.Expand(tmpl, func(name string) string {
 			switch strings.ToLower(name) {
 			case "birthdate":
