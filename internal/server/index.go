@@ -41,10 +41,15 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	httputil.NoCache(w)
 
+	var title = strings.TrimSpace(i.serverSettings.Title)
+	if title == "" {
+		title = "Auth Server"
+	}
 	var codeVerifier = stringutil.RandomBytesString(10)
 	var err = i.tpl.ExecuteTemplate(w, "index", map[string]any{
 		"base_path":      i.basePath,
 		"issuer":         strings.TrimRight(i.serverSettings.Issuer, "/"),
+		"title":          title,
 		"public_key":     string(pubBytes),
 		"state":          fmt.Sprint(rand.Int()),
 		"nonce":          stringutil.RandomBytesString(10),

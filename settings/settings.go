@@ -18,6 +18,7 @@ import (
 type Server struct {
 	Issuer                  string                            `json:"issuer"`
 	Port                    int                               `json:"port"`
+	Title                   string                            `json:"title,omitempty"`
 	Users                   map[string]people.AuthenticPerson `json:"users,omitempty"`
 	Key                     string                            `json:"key"`
 	AdditionalKeys          []string                          `json:"additional_keys,omitempty"`
