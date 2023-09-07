@@ -5,12 +5,15 @@ import (
 	"github.com/cwkr/auth-server/internal/httputil"
 	"github.com/cwkr/auth-server/internal/oauth2"
 	"github.com/cwkr/auth-server/internal/people"
+	"github.com/cwkr/auth-server/internal/stringutil"
 	"github.com/gorilla/mux"
 	"io"
 	"log"
 	"net/http"
 	"strings"
 )
+
+const ErrorAccessDenied = "access_denied"
 
 type peopleAPIHandler struct {
 	peopleStore    people.Store
@@ -78,18 +81,18 @@ func PutPersonHandler(peopleStore people.Store) http.Handler {
 
 		if bytes, err := io.ReadAll(r.Body); err == nil {
 			if err := json.Unmarshal(bytes, &person); err != nil {
-				oauth2.Error(w, oauth2.ErrorInternal, err.Error(), http.StatusInternalServerError)
+				oauth2.Error(w, oauth2.ErrorInvalidRequest, err.Error(), http.StatusBadRequest)
 				return
 			}
 		} else {
-			oauth2.Error(w, oauth2.ErrorInternal, err.Error(), http.StatusInternalServerError)
+			oauth2.Error(w, oauth2.ErrorInvalidRequest, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		var userID = mux.Vars(r)["user_id"]
 
 		if !strings.EqualFold(userID, r.Context().Value("user_id").(string)) {
-			oauth2.Error(w, "access_denied", "", http.StatusForbidden)
+			oauth2.Error(w, ErrorAccessDenied, "", http.StatusForbidden)
 			return
 		}
 
@@ -122,23 +125,28 @@ func ChangePasswordHandler(peopleStore people.Store) http.Handler {
 
 		if bytes, err := io.ReadAll(r.Body); err == nil {
 			if err := json.Unmarshal(bytes, &passwordChange); err != nil {
-				oauth2.Error(w, oauth2.ErrorInternal, err.Error(), http.StatusInternalServerError)
+				oauth2.Error(w, oauth2.ErrorInvalidRequest, err.Error(), http.StatusBadRequest)
 				return
 			}
 		} else {
-			oauth2.Error(w, oauth2.ErrorInternal, err.Error(), http.StatusInternalServerError)
+			oauth2.Error(w, oauth2.ErrorInvalidRequest, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		var userID = mux.Vars(r)["user_id"]
 
 		if !strings.EqualFold(userID, r.Context().Value("user_id").(string)) {
-			oauth2.Error(w, "access_denied", "", http.StatusForbidden)
+			oauth2.Error(w, ErrorAccessDenied, "", http.StatusForbidden)
+			return
+		}
+
+		if stringutil.IsAnyEmpty(passwordChange.OldPassword, passwordChange.NewPassword) {
+			oauth2.Error(w, oauth2.ErrorInvalidRequest, "old_password and new_password are required", http.StatusBadRequest)
 			return
 		}
 
 		if _, err := peopleStore.Authenticate(userID, passwordChange.OldPassword); err != nil {
-			oauth2.Error(w, "access_denied", "", http.StatusForbidden)
+			oauth2.Error(w, oauth2.ErrorInvalidRequest, "", http.StatusBadRequest)
 			return
 		}
 
