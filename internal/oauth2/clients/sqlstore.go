@@ -36,7 +36,7 @@ func (s *sqlStore) Authenticate(clientID, clientSecret string) (*Client, error) 
 	if client, err := s.Lookup(clientID); err != nil {
 		return nil, err
 	} else {
-		return s.inMemoryClientStore.authenticate(client, clientSecret)
+		return s.inMemoryClientStore.compareSecret(client, clientSecret)
 	}
 }
 
