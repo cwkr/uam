@@ -47,7 +47,7 @@ func main() {
 		}
 	}
 
-	var rawJwks map[string][]map[string]string
+	var rawJwks map[string][]map[string]any
 
 	if err := json.Unmarshal(jsonc.ToJSON(jwksBytes), &rawJwks); err != nil {
 		panic(err)

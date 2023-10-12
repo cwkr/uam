@@ -1,4 +1,4 @@
-FROM golang:1.20-bullseye AS build
+FROM golang:1.21-bookworm AS build
 
 WORKDIR /src
 
@@ -7,7 +7,7 @@ COPY ./ ./
 RUN go build
 
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 WORKDIR /
 

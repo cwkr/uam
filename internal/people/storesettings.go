@@ -6,6 +6,6 @@ type StoreSettings struct {
 	GroupsQuery      string            `json:"groups_query,omitempty"`
 	DetailsQuery     string            `json:"details_query,omitempty"`
 	Parameters       map[string]string `json:"parameters,omitempty"`
-	Update           string            `json:"update"`
-	SetPassword      string            `json:"set_password"`
+	Update           string            `json:"update,omitempty"`
+	SetPassword      string            `json:"set_password,omitempty"`
 }
