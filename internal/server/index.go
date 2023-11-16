@@ -27,6 +27,7 @@ type indexHandler struct {
 	publicKey      *rsa.PublicKey
 	scope          string
 	tpl            *template.Template
+	version        string
 }
 
 func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -56,17 +57,19 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"scopes":         strings.Fields(i.scope),
 		"code_verifier":  codeVerifier,
 		"code_challenge": pkce.CodeChallange(codeVerifier),
+		"version":        i.version,
 	})
 	if err != nil {
 		htmlutil.Error(w, i.basePath, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func IndexHandler(basePath string, serverSettings *settings.Server, scope string) http.Handler {
+func IndexHandler(basePath string, serverSettings *settings.Server, scope, version string) http.Handler {
 	return &indexHandler{
 		basePath:       basePath,
 		serverSettings: serverSettings,
 		scope:          scope,
 		tpl:            template.Must(template.New("index").Parse(indexTpl)),
+		version:        version,
 	}
 }

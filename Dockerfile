@@ -1,10 +1,12 @@
 FROM golang:1.21-bookworm AS build
 
+ARG VERSION
+
 WORKDIR /src
 
 COPY ./ ./
 
-RUN go build
+RUN go build -ldflags "-X main.version=${VERSION}"
 
 
 FROM debian:bookworm-slim

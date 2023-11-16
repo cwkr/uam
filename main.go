@@ -24,8 +24,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
+
+var version = "v0.6.x"
 
 func main() {
 	var (
@@ -42,6 +45,7 @@ func main() {
 		setClientSecret  string
 		setUserID        string
 		setPassword      string
+		printVersion     bool
 	)
 
 	log.SetOutput(os.Stdout)
@@ -52,7 +56,15 @@ func main() {
 	flag.StringVar(&setUserID, "user-id", "", "set user id")
 	flag.StringVar(&setPassword, "password", "", "set user password")
 	flag.BoolVar(&saveSettings, "save", false, "save config and exit")
+	flag.BoolVar(&printVersion, "version", false, "print version and exit")
 	flag.Parse()
+
+	if printVersion {
+		fmt.Println(version)
+		os.Exit(0)
+	} else {
+		log.Printf("Starting Auth Server %s built with %s", version, runtime.Version())
+	}
 
 	// Set defaults
 	serverSettings = settings.NewDefault()
@@ -199,7 +211,7 @@ func main() {
 	var router = mux.NewRouter()
 
 	router.NotFoundHandler = htmlutil.NotFoundHandler(basePath)
-	router.Handle(basePath+"/", server.IndexHandler(basePath, serverSettings, scope)).
+	router.Handle(basePath+"/", server.IndexHandler(basePath, serverSettings, scope, version)).
 		Methods(http.MethodGet)
 	router.Handle(basePath+"/style.css", server.StyleHandler()).
 		Methods(http.MethodGet)
@@ -217,6 +229,8 @@ func main() {
 		Methods(http.MethodGet, http.MethodPost)
 	router.Handle(basePath+"/logout", server.LogoutHandler(basePath, serverSettings, sessionStore, clientStore))
 	router.Handle(basePath+"/health", server.HealthHandler(peopleStore)).
+		Methods(http.MethodGet)
+	router.Handle(basePath+"/info", server.InfoHandler(version, runtime.Version())).
 		Methods(http.MethodGet)
 
 	router.Handle(basePath+"/jwks", oauth2.JwksHandler(serverSettings.AllKeys())).
