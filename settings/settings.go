@@ -52,7 +52,7 @@ func NewDefault() *Server {
 		RefreshTokenTTL: 28_800,
 		IDTokenTTL:      28_800,
 		SessionName:     "ASESSION",
-		SessionSecret:   stringutil.RandomBytesString(32),
+		SessionSecret:   stringutil.RandomAlphanumericString(64),
 		SessionTTL:      28_800,
 	}
 }

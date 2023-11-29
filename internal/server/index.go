@@ -46,14 +46,14 @@ func (i *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if title == "" {
 		title = "Auth Server"
 	}
-	var codeVerifier = stringutil.RandomBytesString(10)
+	var codeVerifier = stringutil.RandomAlphanumericString(10)
 	var err = i.tpl.ExecuteTemplate(w, "index", map[string]any{
 		"base_path":      i.basePath,
 		"issuer":         strings.TrimRight(i.serverSettings.Issuer, "/"),
 		"title":          title,
 		"public_key":     string(pubBytes),
 		"state":          fmt.Sprint(rand.Int()),
-		"nonce":          stringutil.RandomBytesString(10),
+		"nonce":          stringutil.RandomAlphanumericString(10),
 		"scopes":         strings.Fields(i.scope),
 		"code_verifier":  codeVerifier,
 		"code_challenge": pkce.CodeChallange(codeVerifier),

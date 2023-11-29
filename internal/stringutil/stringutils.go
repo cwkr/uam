@@ -2,7 +2,7 @@ package stringutil
 
 import (
 	"crypto/rand"
-	"encoding/base64"
+	"math/big"
 )
 
 func IsAnyEmpty(strings ...string) bool {
@@ -14,12 +14,14 @@ func IsAnyEmpty(strings ...string) bool {
 	return false
 }
 
-func RandomBytesString(max int) string {
+func RandomAlphanumericString(max int) string {
+	const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	var bytes = make([]byte, max)
 
-	if _, err := rand.Read(bytes); err != nil {
-		panic(err)
+	for i := 0; i < max; i++ {
+		num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
+		bytes[i] = letters[num.Int64()]
 	}
 
-	return base64.RawURLEncoding.EncodeToString(bytes)
+	return string(bytes)
 }
