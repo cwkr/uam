@@ -12,6 +12,7 @@ func main() {
 	var (
 		outFilename string
 		keySize     int
+		keyID       string
 		err         error
 		keyBytes    []byte
 	)
@@ -20,13 +21,14 @@ func main() {
 
 	flag.StringVar(&outFilename, "o", "", "output file")
 	flag.IntVar(&keySize, "size", 2048, "key size")
+	flag.StringVar(&keyID, "id", "", "key id")
 	flag.Parse()
 
 	if keySize < 1024 {
 		panic("key size less than 1024")
 	}
 
-	_, keyBytes, err = oauth2.GeneratePrivateKey(keySize)
+	keyBytes, err = oauth2.GeneratePrivateKey(keySize, keyID)
 	if err != nil {
 		panic(err)
 	}

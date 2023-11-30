@@ -40,11 +40,12 @@ func main() {
 		clientStore      clients.Store
 		err              error
 		settingsFilename string
-		saveSettings     bool
 		setClientID      string
 		setClientSecret  string
 		setUserID        string
 		setPassword      string
+		keySize          int
+		saveSettings     bool
 		printVersion     bool
 	)
 
@@ -55,6 +56,7 @@ func main() {
 	flag.StringVar(&setClientSecret, "client-secret", "", "set client secret")
 	flag.StringVar(&setUserID, "user-id", "", "set user id")
 	flag.StringVar(&setPassword, "password", "", "set user password")
+	flag.IntVar(&keySize, "key-size", 2048, "generated signing key size")
 	flag.BoolVar(&saveSettings, "save", false, "save config and exit")
 	flag.BoolVar(&printVersion, "version", false, "print version and exit")
 	flag.Parse()
@@ -78,7 +80,14 @@ func main() {
 		log.Print(err)
 	}
 
-	if err := serverSettings.LoadKeys(filepath.Dir(settingsFilename), saveSettings); err != nil {
+	if serverSettings.Key == "" {
+		log.Printf("Generating %d bit RSA key", keySize)
+		if err := serverSettings.GenerateSigningKey(keySize); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if err := serverSettings.LoadKeys(filepath.Dir(settingsFilename)); err != nil {
 		log.Fatal(err)
 	}
 

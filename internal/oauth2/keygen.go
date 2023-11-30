@@ -7,17 +7,25 @@ import (
 	"encoding/pem"
 )
 
-func GeneratePrivateKey(keySize int) (*rsa.PrivateKey, []byte, error) {
+const HeaderKeyID = "KeyID"
+
+func GeneratePrivateKey(keySize int, keyID string) ([]byte, error) {
 	var rsaPrivateKey, err = rsa.GenerateKey(rand.Reader, keySize)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	asn1 := x509.MarshalPKCS1PrivateKey(rsaPrivateKey)
-	bytes := pem.EncodeToMemory(&pem.Block{
+	block := &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: asn1,
-	})
+	}
+	if keyID != "" {
+		block.Headers = map[string]string{
+			HeaderKeyID: keyID,
+		}
+	}
+	bytes := pem.EncodeToMemory(block)
 
-	return rsaPrivateKey, bytes, nil
+	return bytes, nil
 }

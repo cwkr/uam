@@ -57,49 +57,49 @@ func NewDefault() *Server {
 	}
 }
 
-func (s *Server) LoadKeys(basePath string, genNew bool) error {
+func (s *Server) LoadKeys(basePath string) error {
 	var err error
-	s.rsaSigningKeyID = "sigkey"
+
 	if strings.HasPrefix(s.Key, "-----BEGIN RSA PRIVATE KEY-----") {
 		block, _ := pem.Decode([]byte(s.Key))
+		if s.rsaSigningKeyID = block.Headers[oauth2.HeaderKeyID]; s.rsaSigningKeyID == "" {
+			s.rsaSigningKeyID = "sigkey"
+		}
 		s.rsaSigningKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
 			return err
 		}
-	} else if s.Key == "" || !strings.HasPrefix(s.Key, "@") {
-		if !genNew && s.Key != "" {
-			return errors.New("missing key")
-		}
-		var keyBytes []byte
-		s.rsaSigningKey, keyBytes, err = oauth2.GeneratePrivateKey(2048)
-		if err != nil {
-			return err
-		}
-
-		if s.Key == "" {
-			s.Key = string(keyBytes)
-		} else {
-			err := os.WriteFile(s.Key, keyBytes, 0600)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
+	} else if strings.HasPrefix(s.Key, "@") {
 		var filename = filepath.Join(basePath, s.Key[1:])
 		pemBytes, err := os.ReadFile(filename)
 		if err != nil {
 			return err
 		}
 		block, _ := pem.Decode(pemBytes)
+		if s.rsaSigningKeyID = block.Headers[oauth2.HeaderKeyID]; s.rsaSigningKeyID == "" {
+			s.rsaSigningKeyID = strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
+		}
 		s.rsaSigningKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
 			return err
 		}
-		s.rsaSigningKeyID = strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
+	} else {
+		return errors.New("missing or malformed signing key")
 	}
 
 	s.additionalPublicKeys, err = oauth2.LoadPublicKeys(basePath, s.AdditionalKeys)
 	return err
+}
+
+func (s *Server) GenerateSigningKey(keySize int) error {
+	var keyBytes []byte
+	var err error
+	keyBytes, err = oauth2.GeneratePrivateKey(keySize, "")
+	if err != nil {
+		return err
+	}
+	s.Key = string(keyBytes)
+	return nil
 }
 
 func (s Server) PrivateKey() *rsa.PrivateKey {
