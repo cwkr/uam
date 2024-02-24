@@ -2,13 +2,10 @@ package main
 
 import (
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"flag"
 	"fmt"
 	"github.com/cwkr/auth-server/internal/oauth2"
-	"github.com/go-jose/go-jose/v3"
-	"github.com/tidwall/jsonc"
 	"io"
 	"log"
 	"net/http"
@@ -47,24 +44,12 @@ func main() {
 		}
 	}
 
-	var rawJwks map[string][]map[string]any
-
-	if err := json.Unmarshal(jsonc.ToJSON(jwksBytes), &rawJwks); err != nil {
+	var publicKeys map[string]any
+	if jwks, err := oauth2.UnmarshalJWKS(jwksBytes); err != nil {
+		publicKeys = oauth2.ToPublicKeys(jwks)
+	} else {
 		panic(err)
 	}
-
-	var jwks []jose.JSONWebKey
-
-	for _, rawJwk := range rawJwks["keys"] {
-		var jwkBytes, _ = json.Marshal(rawJwk)
-		var jwk jose.JSONWebKey
-		if err := jwk.UnmarshalJSON(jwkBytes); err != nil {
-			panic(err)
-		}
-		jwks = append(jwks, jwk)
-	}
-
-	var publicKeys = oauth2.ToPublicKeys(jwks)
 
 	for _, publicKey := range publicKeys {
 		var pubASN1, _ = x509.MarshalPKIXPublicKey(publicKey)

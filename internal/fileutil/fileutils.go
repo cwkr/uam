@@ -19,7 +19,7 @@ func ProbeSettingsFilename(cmdLineArg string) string {
 	}
 	var basename = filepath.Base(os.Args[0])
 	var exeName = strings.TrimSuffix(basename, filepath.Ext(basename))
-	var nameVariants = []string{exeName + ".jsonc", exeName + ".json"}
+	var nameVariants = []string{exeName + ".jsonc", exeName + ".json", exeName + ".hjson"}
 	for _, name := range nameVariants {
 		if FileExists(name) {
 			return name

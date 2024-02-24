@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"github.com/cwkr/auth-server/internal/fileutil"
@@ -18,7 +17,7 @@ import (
 	"github.com/cwkr/auth-server/settings"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
-	"github.com/tidwall/jsonc"
+	"github.com/hjson/hjson-go/v4"
 	"golang.org/x/crypto/bcrypt"
 	"log"
 	"net/http"
@@ -78,23 +77,26 @@ func main() {
 	if fileutil.FileExists(settingsFilename) {
 		log.Printf("Loading settings from %s", settingsFilename)
 		if bytes, err := os.ReadFile(settingsFilename); err == nil {
-			if err := json.Unmarshal(jsonc.ToJSON(bytes), serverSettings); err != nil {
-				log.Fatal(err)
+			options := hjson.DefaultDecoderOptions()
+			options.DisallowUnknownFields = true
+			options.DisallowDuplicateKeys = true
+			if err := hjson.UnmarshalWithOptions(bytes, serverSettings, options); err != nil {
+				log.Fatalf("!!! %s", err)
 			}
 		} else {
-			log.Print(err)
+			log.Fatalf("!!! %s", err)
 		}
 	}
 
 	if serverSettings.Key == "" {
 		log.Printf("Generating %d bit RSA key", keySize)
 		if err := serverSettings.GenerateSigningKey(keySize); err != nil {
-			log.Fatal(err)
+			log.Fatalf("!!! %s", err)
 		}
 	}
 
 	if err := serverSettings.LoadKeys(filepath.Dir(settingsFilename)); err != nil {
-		log.Fatal(err)
+		log.Fatalf("!!! %s", err)
 	}
 
 	if serverSettings.LoginTemplate != "" {
@@ -102,7 +104,7 @@ func main() {
 		log.Printf("Loading login form template from %s", filename)
 		err = server.LoadLoginTemplate(filename)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("!!! %s", err)
 		}
 	}
 
@@ -113,7 +115,7 @@ func main() {
 		var client = serverSettings.Clients[setClientID]
 		if setClientSecret != "" {
 			if secretHash, err := bcrypt.GenerateFromPassword([]byte(setClientSecret), 5); err != nil {
-				log.Fatal(err)
+				log.Fatalf("!!! %s", err)
 			} else {
 				client.SecretHash = string(secretHash)
 			}
@@ -127,7 +129,7 @@ func main() {
 		}
 		var user = serverSettings.Users[setUserID]
 		if passwordHash, err := bcrypt.GenerateFromPassword([]byte(setPassword), 5); err != nil {
-			log.Fatal(err)
+			log.Fatalf("!!! %s", err)
 		} else {
 			user.PasswordHash = string(passwordHash)
 		}
@@ -136,9 +138,18 @@ func main() {
 
 	if saveSettings {
 		log.Printf("Saving settings to %s", settingsFilename)
-		configJson, _ := json.MarshalIndent(serverSettings, "", "  ")
-		if err := os.WriteFile(settingsFilename, configJson, 0644); err != nil {
-			log.Fatal(err)
+		var configBytes []byte
+		if filepath.Ext(strings.ToLower(settingsFilename)) == ".hjson" {
+			options := hjson.DefaultOptions()
+			options.QuoteAlways = true
+			options.EmitRootBraces = false
+			options.IndentBy = "  "
+			configBytes, _ = hjson.MarshalWithOptions(serverSettings, options)
+		} else {
+			configBytes, _ = json.MarshalIndent(serverSettings, "", "  ")
+		}
+		if err := os.WriteFile(settingsFilename, configBytes, 0644); err != nil {
+			log.Fatalf("!!! %s", err)
 		}
 		os.Exit(0)
 	}
@@ -157,7 +168,7 @@ func main() {
 		serverSettings.IDTokenExtraClaims,
 	)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("!!! %s", err)
 	}
 
 	tokenVerifier = middleware.NewTokenVerifier(serverSettings.AllKeys())
@@ -176,7 +187,7 @@ func main() {
 			sessionStore.Options.Secure = true
 		}
 	} else {
-		log.Fatal(err)
+		log.Fatalf("!!! %s", err)
 	}
 
 	var dbs = make(map[string]*sql.DB)
@@ -186,14 +197,14 @@ func main() {
 	if serverSettings.PeopleStore != nil {
 		if strings.HasPrefix(serverSettings.PeopleStore.URI, "postgresql:") {
 			if peopleStore, err = people.NewSqlStore(sessionStore, users, int64(serverSettings.SessionTTL), dbs, serverSettings.PeopleStore); err != nil {
-				log.Fatal(err)
+				log.Fatalf("!!! %s", err)
 			}
 		} else if strings.HasPrefix(serverSettings.PeopleStore.URI, "ldap:") || strings.HasPrefix(serverSettings.PeopleStore.URI, "ldaps:") {
 			if peopleStore, err = people.NewLdapStore(sessionStore, users, int64(serverSettings.SessionTTL), serverSettings.PeopleStore); err != nil {
-				log.Fatal(err)
+				log.Fatalf("!!! %s", err)
 			}
 		} else {
-			log.Fatal(errors.New("unsupported or empty store uri: " + serverSettings.PeopleStore.URI))
+			log.Fatalf("!!! unsupported or empty store uri: %s", serverSettings.PeopleStore.URI)
 		}
 	} else {
 		peopleStore = people.NewEmbeddedStore(sessionStore, users, int64(serverSettings.SessionTTL))
@@ -202,10 +213,10 @@ func main() {
 	if serverSettings.ClientStore != nil {
 		if strings.HasPrefix(serverSettings.ClientStore.URI, "postgresql:") {
 			if clientStore, err = clients.NewSqlStore(serverSettings.Clients, dbs, serverSettings.ClientStore); err != nil {
-				log.Fatal(err)
+				log.Fatalf("!!! %s", err)
 			}
 		} else {
-			log.Fatal(errors.New("unsupported or empty store uri: " + serverSettings.ClientStore.URI))
+			log.Fatalf("!!! unsupported or empty store uri: %s", serverSettings.ClientStore.URI)
 		}
 	} else {
 		clientStore = clients.NewInMemoryClientStore(serverSettings.Clients)
@@ -214,10 +225,10 @@ func main() {
 	if serverSettings.TRLStore != nil {
 		if strings.HasPrefix(serverSettings.TRLStore.URI, "postgresql:") {
 			if trlStore, err = trl.NewSqlStore(dbs, serverSettings.TRLStore); err != nil {
-				log.Fatal(err)
+				log.Fatalf("!!! %s", err)
 			}
 		} else {
-			log.Fatal(errors.New("unsupported or empty store uri: " + serverSettings.TRLStore.URI))
+			log.Fatalf("!!! unsupported or empty store uri: %s", serverSettings.TRLStore.URI)
 		}
 	} else {
 		trlStore = trl.NewNoopStore()
@@ -280,6 +291,6 @@ func main() {
 	log.Printf("Listening on http://localhost:%d%s/", serverSettings.Port, basePath)
 	err = http.ListenAndServe(fmt.Sprintf(":%d", serverSettings.Port), router)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("!!! %s", err)
 	}
 }

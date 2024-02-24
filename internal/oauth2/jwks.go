@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/cwkr/auth-server/internal/httputil"
 	"github.com/go-jose/go-jose/v3"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -42,24 +43,67 @@ func (j *jwksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func LoadPublicKeys(basePath string, keys []string) (map[string]any, error) {
 	var publicKeys = make(map[string]any)
 
-	for i, key := range keys {
+	for index, rawKey := range keys {
 		var (
 			block *pem.Block
 			kid   string
+			key   = strings.TrimSpace(rawKey)
 		)
 		if strings.HasPrefix(key, "-----BEGIN ") {
 			block, _ = pem.Decode([]byte(key))
-			kid = fmt.Sprintf("key%d", i+1)
-		} else if strings.HasPrefix(key, "@") {
-			var filename = filepath.Join(basePath, key[1:])
+			kid = fmt.Sprintf("key%d", index+1)
+		} else if strings.HasPrefix(key, "http://") || strings.HasPrefix(key, "https://") {
+			log.Printf("GET %s", key)
+			if resp, err := http.Get(key); err == nil && resp.StatusCode == http.StatusOK {
+				var jwksBytes []byte
+				jwksBytes, err = io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, err
+				}
+				var jwks []jose.JSONWebKey
+				jwks, err = UnmarshalJWKS(jwksBytes)
+				if err != nil {
+					return nil, err
+				}
+				jwksKeys := ToPublicKeys(jwks)
+				for jwkid, jwkey := range jwksKeys {
+					publicKeys[jwkid] = jwkey
+				}
+				continue
+			} else {
+				if err != nil {
+					return nil, err
+				} else {
+					return nil, fmt.Errorf("%s", resp.Status)
+				}
+			}
+		} else {
+			var filename string
+			if strings.HasPrefix(key, "@") {
+				filename = filepath.Join(basePath, key[1:])
+			} else {
+				filename = filepath.Join(basePath, key)
+			}
 			bytes, err := os.ReadFile(filename)
 			if err != nil {
 				return nil, err
 			}
+
+			if strings.HasSuffix(strings.ToLower(filename), ".json") {
+				var jwks []jose.JSONWebKey
+				jwks, err = UnmarshalJWKS(bytes)
+				if err != nil {
+					return nil, err
+				}
+				jwksKeys := ToPublicKeys(jwks)
+				for jwkid, jwkey := range jwksKeys {
+					publicKeys[jwkid] = jwkey
+				}
+				continue
+			}
+
 			block, _ = pem.Decode(bytes)
 			kid = strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
-		} else {
-			return nil, errors.New("cannot load key")
 		}
 
 		var publicKey any
@@ -126,4 +170,24 @@ func JwksHandler(publicKeys map[string]any) http.Handler {
 			Keys: ToJwks(publicKeys),
 		},
 	}
+}
+
+func UnmarshalJWKS(bytes []byte) ([]jose.JSONWebKey, error) {
+	var rawJwks map[string][]map[string]any
+
+	if err := json.Unmarshal(bytes, &rawJwks); err != nil {
+		return nil, err
+	}
+
+	var jwks []jose.JSONWebKey
+
+	for _, rawJwk := range rawJwks["keys"] {
+		var jwkBytes, _ = json.Marshal(rawJwk)
+		var jwk jose.JSONWebKey
+		if err := jwk.UnmarshalJSON(jwkBytes); err != nil {
+			return nil, err
+		}
+		jwks = append(jwks, jwk)
+	}
+	return jwks, nil
 }

@@ -8,9 +8,9 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.6
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/sessions v1.2.2
+	github.com/hjson/hjson-go/v4 v4.4.0
 	github.com/lib/pq v1.10.9
 	github.com/oklog/ulid/v2 v2.1.0
-	github.com/tidwall/jsonc v0.3.2
 	golang.org/x/crypto v0.19.0
 )
 
