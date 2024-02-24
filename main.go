@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/cwkr/auth-server/internal/fileutil"
 	"github.com/cwkr/auth-server/internal/htmlutil"
 	"github.com/cwkr/auth-server/internal/maputil"
 	"github.com/cwkr/auth-server/internal/oauth2"
@@ -39,6 +40,7 @@ func main() {
 		trlStore         trl.Store
 		clientStore      clients.Store
 		err              error
+		configFilename   string
 		settingsFilename string
 		setClientID      string
 		setClientSecret  string
@@ -51,7 +53,7 @@ func main() {
 
 	log.SetOutput(os.Stdout)
 
-	flag.StringVar(&settingsFilename, "config", "auth-server.json", "config file name")
+	flag.StringVar(&configFilename, "config", "", "config file name")
 	flag.StringVar(&setClientID, "client-id", "", "set client id")
 	flag.StringVar(&setClientSecret, "client-secret", "", "set client secret")
 	flag.StringVar(&setUserID, "user-id", "", "set user id")
@@ -71,13 +73,17 @@ func main() {
 	// Set defaults
 	serverSettings = settings.NewDefault()
 
-	log.Printf("Loading settings from %s", settingsFilename)
-	if bytes, err := os.ReadFile(settingsFilename); err == nil {
-		if err := json.Unmarshal(jsonc.ToJSON(bytes), serverSettings); err != nil {
-			log.Fatal(err)
+	settingsFilename = fileutil.ProbeSettingsFilename(configFilename)
+
+	if fileutil.FileExists(settingsFilename) {
+		log.Printf("Loading settings from %s", settingsFilename)
+		if bytes, err := os.ReadFile(settingsFilename); err == nil {
+			if err := json.Unmarshal(jsonc.ToJSON(bytes), serverSettings); err != nil {
+				log.Fatal(err)
+			}
+		} else {
+			log.Print(err)
 		}
-	} else {
-		log.Print(err)
 	}
 
 	if serverSettings.Key == "" {

@@ -1,17 +1,29 @@
 package fileutil
 
 import (
-	"errors"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 func FileExists(name string) bool {
-	stat, err := os.Stat(name)
-	if err == nil {
+	if stat, err := os.Stat(name); err == nil {
 		return !stat.IsDir()
 	}
-	if errors.Is(err, os.ErrNotExist) {
-		return false
-	}
 	return false
+}
+
+func ProbeSettingsFilename(cmdLineArg string) string {
+	if cmdLineArg != "" {
+		return cmdLineArg
+	}
+	var basename = filepath.Base(os.Args[0])
+	var exeName = strings.TrimSuffix(basename, filepath.Ext(basename))
+	var nameVariants = []string{exeName + ".jsonc", exeName + ".json"}
+	for _, name := range nameVariants {
+		if FileExists(name) {
+			return name
+		}
+	}
+	return exeName + ".jsonc"
 }
