@@ -46,8 +46,10 @@ func main() {
 		setUserID        string
 		setPassword      string
 		keySize          int
+		keyID            string
 		saveSettings     bool
 		printVersion     bool
+		setPort          int
 	)
 
 	log.SetOutput(os.Stdout)
@@ -58,8 +60,10 @@ func main() {
 	flag.StringVar(&setUserID, "user-id", "", "set user id")
 	flag.StringVar(&setPassword, "password", "", "set user password")
 	flag.IntVar(&keySize, "key-size", 2048, "generated signing key size")
+	flag.StringVar(&keyID, "key-id", "sigkey", "set generated signing key id")
 	flag.BoolVar(&saveSettings, "save", false, "save config and exit")
 	flag.BoolVar(&printVersion, "version", false, "print version and exit")
+	flag.IntVar(&setPort, "port", 6080, "http server port")
 	flag.Parse()
 
 	if printVersion {
@@ -70,7 +74,7 @@ func main() {
 	}
 
 	// Set defaults
-	serverSettings = settings.NewDefault()
+	serverSettings = settings.NewDefault(setPort)
 
 	settingsFilename = fileutil.ProbeSettingsFilename(configFilename)
 
@@ -89,8 +93,8 @@ func main() {
 	}
 
 	if serverSettings.Key == "" {
-		log.Printf("Generating %d bit RSA key", keySize)
-		if err := serverSettings.GenerateSigningKey(keySize); err != nil {
+		log.Printf("Generating %d bit RSA key with ID %q", keySize, keyID)
+		if err := serverSettings.GenerateSigningKey(keySize, keyID); err != nil {
 			log.Fatalf("!!! %s", err)
 		}
 	}
@@ -134,6 +138,10 @@ func main() {
 			user.PasswordHash = string(passwordHash)
 		}
 		serverSettings.Users[setUserID] = user
+	}
+
+	if setPort != serverSettings.Port {
+		serverSettings.Port = setPort
 	}
 
 	if saveSettings {

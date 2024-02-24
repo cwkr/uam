@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"github.com/cwkr/auth-server/internal/oauth2"
 	"github.com/cwkr/auth-server/internal/oauth2/clients"
 	"github.com/cwkr/auth-server/internal/oauth2/trl"
@@ -44,15 +45,15 @@ type Server struct {
 	additionalPublicKeys    map[string]any
 }
 
-func NewDefault() *Server {
+func NewDefault(port int) *Server {
 	return &Server{
-		Issuer:          "http://localhost:6080/",
-		Port:            6080,
+		Issuer:          fmt.Sprintf("http://localhost:%d", port),
+		Port:            port,
 		AccessTokenTTL:  3_600,
 		RefreshTokenTTL: 28_800,
 		IDTokenTTL:      28_800,
-		SessionName:     "ASESSION",
-		SessionSecret:   stringutil.RandomAlphanumericString(64),
+		SessionName:     "_auth",
+		SessionSecret:   stringutil.RandomAlphanumericString(32),
 		SessionTTL:      28_800,
 	}
 }
@@ -91,10 +92,10 @@ func (s *Server) LoadKeys(basePath string) error {
 	return err
 }
 
-func (s *Server) GenerateSigningKey(keySize int) error {
+func (s *Server) GenerateSigningKey(keySize int, keyID string) error {
 	var keyBytes []byte
 	var err error
-	keyBytes, err = oauth2.GeneratePrivateKey(keySize, "")
+	keyBytes, err = oauth2.GeneratePrivateKey(keySize, keyID)
 	if err != nil {
 		return err
 	}

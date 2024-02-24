@@ -24,9 +24,13 @@ It is possible to use a PostgreSQL database or LDAP as people store.
       "password_hash": "$2a$12$yos0Nv/lfhjKjJ7CSmkCteSJRmzkirYwGFlBqeY4ss3o3nFSb5WDy"
     }
   },
-  "key": "mykey.pem",
+  // load signing key from file 
+  "key": "@mykey.pem",
   // extra public keys to include in jwks
-  "additional_keys": null,
+  "additional_keys": [
+    "@othe.key",
+    "http://localhost:7654/jwks.json"
+  ],
   "clients": {
     "app": {
       "redirect_uri_pattern": "https?:\\/\\/localhost(:\\d+)?\\/"
@@ -36,6 +40,7 @@ It is possible to use a PostgreSQL database or LDAP as people store.
     "uri": "postgresql://authserver:trustno1@localhost/dev?sslmode=disable",
     "query": "SELECT COALESCE(redirect_uri_pattern, '') redirect_uri_pattern, COALESCE(secret_hash, '') secret_hash, COALESCE(session_name, '') session_name, disable_implicit, enable_refresh_token_rotation FROM clients WHERE lower(client_id) = lower($1)"
   },
+  // define custom access token claims
   "access_token_extra_claims": {
     "prn": "$user_id",
     "email": "$email",
@@ -44,12 +49,16 @@ It is possible to use a PostgreSQL database or LDAP as people store.
     "sn": "$family_name",
     "user_id": "$user_id"
   },
+  // define custom id token claims
+  "id_token_extra_claims": {
+    "groups": "$groups"
+  },
   // available scopes
   "extra_scope": "profile email offline_access",
   "access_token_ttl": 3600,
   "refresh_token_ttl": 28800,
-  "session_secret": "eoxxj3S-KsA7rlVHYfhOy22rW7abWDi5lS7WoCZ9hf4",
-  "session_name": "ASESSION",
+  "session_secret": "AwBVrwW0boviWc3L12PplWTEgO4B4dxi",
+  "session_name": "_auth",
   "session_ttl": 28800,
   "people_store": {
     "uri": "postgresql://authserver:trustno1@localhost/dev?sslmode=disable",
@@ -69,7 +78,8 @@ It is possible to use a PostgreSQL database or LDAP as people store.
 {
   "issuer": "http://localhost:6080/",
   "port": 6080,
-  "key": "mykey.pem",
+  // load signing key from file
+  "key": "@mykey.pem",
   "clients": {
     "app": {
       "redirect_uri_pattern": "https?:\\/\\/localhost(:\\d+)?\\/"
@@ -86,8 +96,8 @@ It is possible to use a PostgreSQL database or LDAP as people store.
   "extra_scope": "profile",
   "access_token_ttl": 3600,
   "refresh_token_ttl": 28800,
-  "session_secret": "jpDc7ah68Vw8yOccr9yIaWDR7_oqN1vHrLQEJ1YLvnQ",
-  "session_name": "ASESSION",
+  "session_secret": "j2mejSKidaFJ38wjxaf2amQRmZ4Mtibp",
+  "session_name": "_auth",
   "session_ttl": 28800,
   "people_store": {
     "uri": "ldaps://cn=access_user,cn=Users,dc=example,dc=org:trustno1@oid.example.org:3070",

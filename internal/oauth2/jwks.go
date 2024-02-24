@@ -108,6 +108,10 @@ func LoadPublicKeys(basePath string, keys []string) (map[string]any, error) {
 
 		var publicKey any
 
+		if kidHeaderValue, hasKidHeader := block.Headers[HeaderKeyID]; hasKidHeader && kidHeaderValue != "" {
+			kid = kidHeaderValue
+		}
+
 		switch strings.TrimSpace(strings.ToLower(block.Type)) {
 		case "rsa private key":
 			rsaPrivateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)

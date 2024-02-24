@@ -1,4 +1,4 @@
-FROM golang:1.21-bookworm AS build
+FROM golang:1.22-bookworm AS build
 
 ARG VERSION
 
@@ -20,4 +20,4 @@ EXPOSE 6080
 VOLUME /etc/auth-server
 
 ENTRYPOINT ["/bin/auth-server"]
-CMD ["-config", "/etc/auth-server/auth-server.json"]
+CMD ["-config", "/etc/auth-server/auth-server.jsonc"]
