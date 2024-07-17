@@ -42,7 +42,7 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var (
 		timing          = httputil.NewTiming()
 		responseType    = strings.ToLower(strings.TrimSpace(r.FormValue("response_type")))
-		clientID        = strings.ToLower(strings.TrimSpace(r.FormValue("client_id")))
+		clientID        = strings.TrimSpace(r.FormValue("client_id"))
 		redirectURI     = strings.TrimSpace(r.FormValue("redirect_uri"))
 		state           = strings.TrimSpace(r.FormValue("state"))
 		scope           = strings.TrimSpace(r.FormValue("scope"))
@@ -92,24 +92,25 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var redirectParams = url.Values{}
+	redirectParams.Set("state", state)
+
 	switch responseType {
 	case ResponseTypeToken:
 		timing.Start("jwtgen")
-		var x, err = a.tokenService.GenerateAccessToken(user, user.UserID, clientID, IntersectScope(a.scope, scope))
+		var accessToken, err = a.tokenService.GenerateAccessToken(user, user.UserID, clientID, IntersectScope(a.scope, scope))
 		if err != nil {
 			htmlutil.Error(w, a.basePath, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		timing.Stop("jwtgen")
+		redirectParams.Set("access_token", accessToken)
+		redirectParams.Set("token_type", "Bearer")
+		redirectParams.Set("expires_in", fmt.Sprint(a.tokenService.AccessTokenTTL()))
 
 		httputil.NoCache(w)
 		timing.Report(w)
-		httputil.RedirectFragment(w, r, redirectURI, url.Values{
-			"access_token": {x},
-			"token_type":   {"Bearer"},
-			"expires_in":   {fmt.Sprint(a.tokenService.AccessTokenTTL())},
-			"state":        {state},
-		})
+		httputil.RedirectFragment(w, r, redirectURI, redirectParams)
 	case ResponseTypeCode:
 		if challengeMethod != "" {
 			if challenge == "" || challengeMethod != "S256" {
@@ -119,16 +120,17 @@ func (a *authorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		timing.Start("jwtgen")
-		var x, err = a.tokenService.GenerateAuthCode(user.UserID, clientID, IntersectScope(a.scope, scope), challenge, nonce)
+		var authCode, err = a.tokenService.GenerateAuthCode(user.UserID, clientID, IntersectScope(a.scope, scope), challenge, nonce)
 		if err != nil {
 			htmlutil.Error(w, a.basePath, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		timing.Stop("jwtgen")
+		redirectParams.Set("code", authCode)
 
 		httputil.NoCache(w)
 		timing.Report(w)
-		httputil.RedirectQuery(w, r, redirectURI, url.Values{"code": {x}, "state": {state}})
+		httputil.RedirectQuery(w, r, redirectURI, redirectParams)
 	default:
 		htmlutil.Error(w, a.basePath, ErrorUnsupportedGrantType, http.StatusBadRequest)
 	}
