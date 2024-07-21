@@ -45,6 +45,10 @@ func main() {
 		setClientSecret  string
 		setUserID        string
 		setPassword      string
+		setGivenName     string
+		setFamilyName    string
+		setEmail         string
+		setDepartment    string
 		keySize          int
 		keyID            string
 		saveSettings     bool
@@ -59,6 +63,10 @@ func main() {
 	flag.StringVar(&setClientSecret, "client-secret", "", "set client secret")
 	flag.StringVar(&setUserID, "user-id", "", "set user id")
 	flag.StringVar(&setPassword, "password", "", "set user password")
+	flag.StringVar(&setGivenName, "given-name", "", "set user given name")
+	flag.StringVar(&setFamilyName, "family-name", "", "set user family name")
+	flag.StringVar(&setEmail, "email", "", "set user email")
+	flag.StringVar(&setDepartment, "department", "", "set user department")
 	flag.IntVar(&keySize, "key-size", 2048, "generated signing key size")
 	flag.StringVar(&keyID, "key-id", "sigkey", "set generated signing key id")
 	flag.BoolVar(&saveSettings, "save", false, "save config and exit")
@@ -127,15 +135,32 @@ func main() {
 		serverSettings.Clients[setClientID] = client
 	}
 
-	if setUserID != "" && setPassword != "" {
+	if setUserID != "" {
 		if serverSettings.Users == nil {
 			serverSettings.Users = map[string]people.AuthenticPerson{}
 		}
 		var user = serverSettings.Users[setUserID]
-		if passwordHash, err := bcrypt.GenerateFromPassword([]byte(setPassword), 5); err != nil {
-			log.Fatalf("!!! %s", err)
-		} else {
-			user.PasswordHash = string(passwordHash)
+		if setPassword != "" {
+			if passwordHash, err := bcrypt.GenerateFromPassword([]byte(setPassword), 5); err != nil {
+				log.Fatalf("!!! %s", err)
+			} else {
+				user.PasswordHash = string(passwordHash)
+			}
+		}
+		if setGivenName != "" {
+			user.GivenName = setGivenName
+		}
+		if setFamilyName != "" {
+			user.FamilyName = setFamilyName
+		}
+		if setEmail != "" {
+			user.Email = setEmail
+		}
+		if setDepartment != "" {
+			user.Department = setDepartment
+		}
+		if user.PasswordHash == "" {
+			log.Fatal("!!! missing password")
 		}
 		serverSettings.Users[setUserID] = user
 	}
