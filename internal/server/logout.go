@@ -1,24 +1,39 @@
 package server
 
 import (
-	"fmt"
+	_ "embed"
 	"github.com/cwkr/auth-server/internal/htmlutil"
 	"github.com/cwkr/auth-server/internal/httputil"
 	"github.com/cwkr/auth-server/internal/oauth2/clients"
-	settings "github.com/cwkr/auth-server/settings"
+	"github.com/cwkr/auth-server/settings"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/sessions"
+	"html/template"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 )
+
+//go:embed templates/logout.gohtml
+var logoutTpl string
+
+func LoadLogoutTemplate(filename string) error {
+	if bytes, err := os.ReadFile(filename); err == nil {
+		logoutTpl = string(bytes)
+		return nil
+	} else {
+		return err
+	}
+}
 
 type logoutHandler struct {
 	basePath       string
 	serverSettings *settings.Server
 	sessionStore   sessions.Store
 	clientStore    clients.Store
+	tpl            *template.Template
 }
 
 func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +98,9 @@ func (l *logoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.Header().Set("Content-Type", "text/html;charset=UTF-8")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		fmt.Fprintf(w, "<!DOCTYPE html><meta charset=\"UTF-8\"><link rel=\"stylesheet\" href=\"%s/style.css\"><h1>Session terminated</h1>", l.basePath)
+		if err := l.tpl.ExecuteTemplate(w, "logout", map[string]any{"base_path": l.basePath}); err != nil {
+			htmlutil.Error(w, l.basePath, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -93,5 +110,6 @@ func LogoutHandler(basePath string, serverSettings *settings.Server, sessionStor
 		serverSettings: serverSettings,
 		sessionStore:   sessionStore,
 		clientStore:    clientStore,
+		tpl:            template.Must(template.New("logout").Parse(logoutTpl)),
 	}
 }

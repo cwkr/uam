@@ -120,6 +120,15 @@ func main() {
 		}
 	}
 
+	if serverSettings.LogoutTemplate != "" {
+		var filename = filepath.Join(filepath.Dir(settingsFilename), strings.TrimPrefix(serverSettings.LogoutTemplate, "@"))
+		log.Printf("Loading logout template from %s", filename)
+		err = server.LoadLogoutTemplate(filename)
+		if err != nil {
+			log.Fatalf("!!! %s", err)
+		}
+	}
+
 	if setClientID != "" {
 		if serverSettings.Clients == nil {
 			serverSettings.Clients = map[string]clients.Client{}

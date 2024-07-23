@@ -39,6 +39,7 @@ type Server struct {
 	PeopleAPICustomVersions map[string]map[string]string      `json:"people_api_custom_versions,omitempty"`
 	PeopleAPIRequireAuthN   bool                              `json:"people_api_require_authn,omitempty"`
 	LoginTemplate           string                            `json:"login_template,omitempty"`
+	LogoutTemplate          string                            `json:"logout_template,omitempty"`
 	TRLStore                *trl.StoreSettings                `json:"trl_store,omitempty"`
 	rsaSigningKey           *rsa.PrivateKey
 	rsaSigningKeyID         string
