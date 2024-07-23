@@ -75,21 +75,6 @@
     <pre style="white-space: pre-wrap; word-wrap: break-word;"><code id="refresh_token_output"></code></pre>
 </div>
 
-<h2>Token Revocation</h2>
-<form id="revoke_form">
-    <label for="token_type_hint">Token type</label>
-    <select id="token_type_hint" name="token_type_hint">
-        <option value="refresh_token">refresh_token</option>
-    </select>
-    <label for="revoke_client_id">Client</label>
-    <input type="text" id="revoke_client_id" name="client_id" required>
-    <label for="revoke_client_secret">Client Secret</label>
-    <input type="password" id="revoke_client_secret">
-    <label for="revoke_token">Token</label>
-    <textarea id="revoke_token" name="token"></textarea>
-    <button type="submit">Revoke token</button>
-</form>
-
 <div style="text-align: right"><small>{{ .version }}</small></div>
 </body>
 </html>

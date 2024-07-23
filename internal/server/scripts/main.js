@@ -13,13 +13,6 @@ function rememberRequestForm() {
     }
 }
 
-function rememberRevokeForm() {
-    const clientId = document.getElementById("revoke_client_id").value;
-    const tokenTypeHint = document.getElementById("token_type_hint").value;
-    sessionStorage.setItem("client_id", clientId);
-    sessionStorage.setItem("token_type_hint", tokenTypeHint);
-}
-
 function updateFields(responseType) {
     if (responseType === "code") {
         document.querySelectorAll("#code_challenge, #code_challenge_method, #nonce, #scope").forEach(input => {
@@ -112,35 +105,8 @@ function onRequestFormSubmit(event) {
     rememberRequestForm();
 }
 
-function onRevokeFormSubmit(event) {
-    event.preventDefault();
-    const postParams = new URLSearchParams({
-        "token_type_hint": document.getElementById("token_type_hint").value,
-        "client_id": document.getElementById("revoke_client_id").value,
-        "client_secret": document.getElementById("revoke_client_secret").value,
-        "token": document.getElementById("revoke_token").value,
-    });
-    fetch("revoke", {method: "POST", body: postParams})
-        .then(async resp => {
-            if (!resp.ok) {
-                throw new Error(await resp.text());
-            }
-            return resp.text();
-        })
-        .then(data => {
-            document.getElementById("revoke_token").value = '';
-        })
-        .catch(error => {
-            console.error(error);
-            document.getElementById("revoke_token").value = error.message;
-        });
-
-    rememberRevokeForm();
-}
-
 document.getElementById('response_type').addEventListener("change", onResponseTypeChange);
 document.getElementById('request_form').addEventListener("submit", onRequestFormSubmit);
-document.getElementById('revoke_form').addEventListener("submit", onRevokeFormSubmit);
 document.addEventListener('DOMContentLoaded', () => {
     if (document.readyState === 'loading') {
         return;
@@ -156,7 +122,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (rememberedClientId) {
         document.getElementById("client_id").value = rememberedClientId;
         document.getElementById("client_id_logout").value = rememberedClientId;
-        document.getElementById("revoke_client_id").value = rememberedClientId;
     }
 
     const rememberedScope = sessionStorage.getItem("scope");
@@ -164,7 +129,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const rememberedScopes = rememberedScope.split(/\s+/g);
         document.getElementById("scope").value = rememberedScope;
         document.querySelectorAll('input[id^="scope_"]').forEach(input => {
-            console.log(input);
             input.checked = rememberedScopes.includes(input.value);
         });
     }
@@ -210,7 +174,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.refresh_token) {
                     document.getElementById("refresh_token_output").textContent = data.refresh_token;
                     document.getElementById("refresh_token_panel").style.display = 'block';
-                    document.getElementById("revoke_token").value = data.refresh_token;
                 }
                 if (data.id_token) {
                     document.getElementById("id_token_output").textContent = data.id_token;
