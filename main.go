@@ -224,6 +224,7 @@ func main() {
 		if issuerUrl.Path != "/" {
 			basePath = strings.TrimSuffix(issuerUrl.Path, "/")
 			sessionStore.Options.Path = basePath
+			sessionStore.Options.Secure = false
 		}
 		if issuerUrl.Scheme == "https" {
 			sessionStore.Options.Secure = true
