@@ -7,4 +7,5 @@ var (
 	ErrClientSecretMismatch = errors.New("client secret is not the given secret")
 	ErrClientNoSecret       = errors.New("client has no secret")
 	ErrClientSecretRequired = errors.New("client secret required")
+	ErrSessionNameMissing   = errors.New("session name missing")
 )

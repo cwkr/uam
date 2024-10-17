@@ -6,6 +6,8 @@ import (
 	"github.com/blockloop/scan/v2"
 	"github.com/cwkr/auth-server/internal/maputil"
 	"log"
+	"slices"
+	"strings"
 )
 
 type sqlStore struct {
@@ -64,6 +66,55 @@ func (s *sqlStore) Lookup(clientID string) (*Client, error) {
 	}
 	log.Printf("%#v", client)
 	return &client, nil
+}
+
+type clientSessionInfo struct {
+	ClientID    string `db:"client_id"`
+	SessionName string `db:"session_name"`
+}
+
+func (s *sqlStore) PerSessionNameMap(defaultSessionName string) (map[string][]string, error) {
+	var clientsPerSessionName = map[string][]string{}
+	if c, err := s.inMemoryClientStore.PerSessionNameMap(defaultSessionName); err == nil {
+		clientsPerSessionName = c
+	} else {
+		return nil, err
+	}
+
+	var inMemoryClientIDs []string
+
+	for _, cs := range clientsPerSessionName {
+		inMemoryClientIDs = append(inMemoryClientIDs, cs...)
+	}
+
+	var clients []clientSessionInfo
+
+	log.Printf("SQL: %s", s.settings.QuerySessionNames)
+	// SELECT client_id, COALESCE(session_name, '') as session_name FROM clients
+	if rows, err := s.dbconn.Query(s.settings.QuerySessionNames); err == nil {
+		if err := scan.RowsStrict(&clients, rows); err != nil {
+			log.Printf("!!! Scan session_names failed: %v", err)
+			return nil, err
+		}
+	} else {
+		log.Printf("!!! Query for session_names failed: %v", err)
+		return nil, err
+	}
+
+	for _, client := range clients {
+		if !slices.ContainsFunc(inMemoryClientIDs, func(cid string) bool {
+			return strings.EqualFold(cid, client.ClientID)
+		}) {
+			if client.SessionName != "" {
+				clientsPerSessionName[client.SessionName] = append(clientsPerSessionName[client.SessionName], client.ClientID)
+			} else if defaultSessionName != "" {
+				clientsPerSessionName[defaultSessionName] = append(clientsPerSessionName[defaultSessionName], client.ClientID)
+			} else {
+				return nil, ErrSessionNameMissing
+			}
+		}
+	}
+	return clientsPerSessionName, nil
 }
 
 func (s *sqlStore) Ping() error {

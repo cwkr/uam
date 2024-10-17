@@ -280,7 +280,7 @@ func main() {
 	var router = mux.NewRouter()
 
 	router.NotFoundHandler = htmlutil.NotFoundHandler(basePath)
-	router.Handle(basePath+"/", server.IndexHandler(basePath, serverSettings, scope, version)).
+	router.Handle(basePath+"/", server.IndexHandler(basePath, serverSettings, peopleStore, clientStore, scope, version)).
 		Methods(http.MethodGet)
 	router.Handle(basePath+"/style.css", server.StyleHandler()).
 		Methods(http.MethodGet)

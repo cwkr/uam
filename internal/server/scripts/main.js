@@ -121,7 +121,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const rememberedClientId = sessionStorage.getItem("client_id");
     if (rememberedClientId) {
         document.getElementById("client_id").value = rememberedClientId;
-        document.getElementById("client_id_logout").value = rememberedClientId;
     }
 
     const rememberedScope = sessionStorage.getItem("scope");
@@ -131,12 +130,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('input[id^="scope_"]').forEach(input => {
             input.checked = rememberedScopes.includes(input.value);
         });
-    }
-
-    const rememberedTokenTypeHint = sessionStorage.getItem("token_type_hint");
-    if (rememberedTokenTypeHint) {
-        document.getElementById("token_type_hint").value = rememberedTokenTypeHint;
-        updateFields(rememberedTokenTypeHint);
     }
 
     let urlParams = new URLSearchParams();

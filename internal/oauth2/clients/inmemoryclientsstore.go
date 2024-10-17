@@ -45,6 +45,20 @@ func (i inMemoryClientStore) Lookup(clientID string) (*Client, error) {
 	return nil, ErrClientNotFound
 }
 
+func (i inMemoryClientStore) PerSessionNameMap(defaultSessionName string) (map[string][]string, error) {
+	var clientsPerSessionName = map[string][]string{}
+	for clientID, client := range i {
+		if client.SessionName != "" {
+			clientsPerSessionName[client.SessionName] = append(clientsPerSessionName[client.SessionName], clientID)
+		} else if defaultSessionName != "" {
+			clientsPerSessionName[defaultSessionName] = append(clientsPerSessionName[defaultSessionName], clientID)
+		} else {
+			return nil, ErrSessionNameMissing
+		}
+	}
+	return clientsPerSessionName, nil
+}
+
 func (i inMemoryClientStore) Ping() error {
 	return nil
 }
